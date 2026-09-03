@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Bird, BookOpen, ChevronDown, ChevronUp, Flame, Gauge, Mountain, Plus, ScrollText, Sparkles, Trash2, Zap } from 'lucide-react';
+import { Bird, BookOpen, ChevronDown, ChevronUp, Flame, Gauge, House, Mountain, Plus, ScrollText, Sparkles, Trash2, Zap } from 'lucide-react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { type CourseInput, type Distribution, type Objective, type OptimizationResult, optimizeCourses } from '@/lib/lottery';
@@ -418,7 +418,7 @@ export default function Home() {
           <aside className="advice-card" aria-label="筹策心法">
             <div className="advice-strip" aria-hidden="true">点筹司 · 筹策心法</div>
             <header className="advice-head">
-              <span>ADVICE & GUIDE · v1.0</span>
+              <span>ADVICE & GUIDE · v1.1</span>
               <p>推演开始前的一席话：这个网站从何而来，以及如何把它用明白。</p>
             </header>
             <section className="advice-sec">
@@ -448,6 +448,26 @@ export default function Home() {
                 <p>正态分布——在平均值的基础上根据 3σ 原则（σ ≈ 一般最多不超过的人数偏差 / 3）；</p>
                 <p>根据自己的意愿填写<b>课程权重</b>来加权，建议自我归一化，不归一也无伤大雅；</p>
                 <p>优化函数自行选择。</p>
+              </div>
+            </section>
+            <section className="advice-sec">
+              <span className="chapter">03</span>
+              <div>
+                <p className="model-kicker">On the predecessors</p>
+                <h3>关于树洞前辈</h3>
+                <p>大一下学期，我曾使用树洞前辈留下的<a className="advice-link" href="https://guyutongxue.site/pages/toudian/" target="_blank" rel="noreferrer">投点计算器</a>，再配合颇有仪式感的“质数投点法”作出选择。直到 9 月 3 日晚重新追问票池机制，我渐渐觉得原有方法的经验性偏强，于数学表达上也不够合我心意，于是决定从抽签规则本身重新建模。</p>
+                <div className="predecessor-compare" aria-label="前辈计算器与点筹司的主要区别">
+                  <div>
+                    <span>前辈之策</span>
+                    <p>以问卷、长期试用所沉淀的经验公式为底色，由限数与已选数刻画拥挤度、估计平均投点，再围绕“快乐值”逐步调配九十九点。</p>
+                  </div>
+                  <div>
+                    <span>此间新解</span>
+                    <p>显式假设竞争者投点分布，以闭式解或蒙特卡洛求出概率曲线，再由整数动态规划搜索全局最优分配。</p>
+                  </div>
+                </div>
+                <p>两者的骨架其实相近：都从课程名额、已选人数与个人价值出发，给出九十九点的推荐去处。主要差别在于，笔者把<b>经验公式</b>替换为<b>可切换的分布假设与概率计算</b>，并用 <b>DP</b> 明确保证给定概率曲线下的整数全局最优。</p>
+                <p className="advice-source">旧工具页面署名：模型源自树洞 #1182418，JavaScript 网页由 @wyjjmzx 移植。谨向先行者致意。</p>
               </div>
             </section>
           </aside>
@@ -755,6 +775,11 @@ export default function Home() {
         </div>
 
         <aside className="side-rail">
+          <a className="rail-home-link" href="https://flowwalker.github.io/" aria-label="返回 Flowwalker 主站">
+            <House size={14} />
+            <span>返回主站</span>
+            <small>flowwalker.github.io</small>
+          </a>
           <div className="rail-card rail-identity">
             <div className="rail-id-top">
               <span className="rail-seal">筹</span>
