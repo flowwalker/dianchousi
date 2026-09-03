@@ -127,6 +127,11 @@ export default function Home() {
     event.currentTarget.style.setProperty('--px', `${((event.clientX - rect.left) / rect.width - 0.5) * 12}px`);
     event.currentTarget.style.setProperty('--py', `${((event.clientY - rect.top) / rect.height - 0.5) * 8}px`);
   };
+  const panelMove = (event: React.PointerEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    event.currentTarget.style.setProperty('--glow-x', `${event.clientX - rect.left}px`);
+    event.currentTarget.style.setProperty('--glow-y', `${event.clientY - rect.top}px`);
+  };
 
   return (
     <main>
@@ -144,6 +149,13 @@ export default function Home() {
         <div className="hero-badges"><span><Flame size={15} />0 点亦有一票</span><span><Bird size={15} />全局整数最优</span><span><Gauge size={15} />可复现模拟</span></div>
       </section>
 
+      <div className="scene-transition" aria-hidden="true">
+        <div className="cloud-bank cloud-bank-left" />
+        <div className="cloud-bank cloud-bank-right" />
+        <div className="gate-plaque"><span>穿云入殿</span><i>筹算开局</i></div>
+        <div className="gate-light" />
+      </div>
+
       <section className="calculator-wrap" id="calculator">
         <div className="section-heading"><div><span className="seal">壹</span><p>筹点推演</p><h2>录入局势，分配九十九点</h2></div><div className="budget-orb"><strong>{result ? budget - result.usedPoints : budget}</strong><span>{result ? '余点' : '总点'}</span></div></div>
 
@@ -159,7 +171,7 @@ export default function Home() {
 
         <div className="course-list">
           {courses.map((course, index) => (
-            <article className="course-card palace-panel" key={course.id} style={{ '--delay': `${index * 70}ms` } as React.CSSProperties}>
+            <article className="course-card palace-panel" key={course.id} onPointerMove={panelMove} style={{ '--delay': `${index * 70}ms` } as React.CSSProperties}>
               <header><div><span className="course-index">{String(index + 1).padStart(2, '0')}</span><input aria-label={`第${index + 1}门课程名称`} className="course-name" value={course.name} onChange={(event) => updateCourse(course.id, { name: event.target.value })} /></div>{courses.length > 1 && <button aria-label={`删除${course.name}`} className="icon-button" type="button" onClick={() => setCourses((current) => current.filter((item) => item.id !== course.id))}><Trash2 size={16} /></button>}</header>
               <div className="field-row three"><Field label="抽签名额 a" value={course.capacity} onChange={(capacity) => updateCourse(course.id, { capacity })} /><Field label="竞争者 b" value={course.competitors} hint="不含本人" onChange={(competitors) => updateCourse(course.id, { competitors })} /><Field label="课程价值 v" value={course.value} min={0.1} step={0.1} onChange={(value) => updateCourse(course.id, { value })} /></div>
               <label className="field distribution-select"><span>竞争者投点假设</span><select value={course.distribution.type} onChange={(event) => changeDistribution(course.id, event.target.value as Distribution['type'])}>{(Object.keys(distributionLabels) as Distribution['type'][]).map((type) => <option key={type} value={type}>{distributionLabels[type]}</option>)}</select><ChevronDown size={15} /></label>
