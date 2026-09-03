@@ -787,7 +787,7 @@ export default function Home() {
             </div>
             <p>依真实票池机制推演中签概率，再以整数动态规划全局分配九十九点。</p>
             <div className="rail-tags"><span><Flame size={13} />0 点有票</span><span><Bird size={13} />全局最优</span><span><Gauge size={13} />可复现</span></div>
-            <div className="rail-meta">v1.0 · 本机运算 · 数据不出门</div>
+            <div className="rail-meta">源自 flowwalker</div>
           </div>
 
           <div className="rail-card rail-toc">
