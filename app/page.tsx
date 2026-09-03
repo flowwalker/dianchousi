@@ -455,7 +455,7 @@ export default function Home() {
               <div>
                 <p className="model-kicker">On the predecessors</p>
                 <h3>关于树洞前辈</h3>
-                <p>大一下学期，我曾使用树洞前辈留下的<a className="advice-link" href="https://guyutongxue.site/pages/toudian/" target="_blank" rel="noreferrer">投点计算器</a>，再配合颇有仪式感的“质数投点法”作出选择。直到 9 月 3 日晚重新追问票池机制，我渐渐觉得原有方法的经验性偏强，于数学表达上也不够合我心意，于是决定从抽签规则本身重新建模。</p>
+                <p>大一下学期，笔者曾使用树洞前辈留下的<a className="advice-link" href="https://guyutongxue.site/pages/toudian/" target="_blank" rel="noreferrer">投点计算器</a>，再配合颇有仪式感的“质数投点法”作出选择。直到 9 月 3 日晚重新追问票池机制，笔者渐觉原有方法的经验性偏强，数学表达亦未尽优雅，于是决定从抽签规则本身重新建模。</p>
                 <div className="predecessor-compare" aria-label="前辈计算器与点筹司的主要区别">
                   <div>
                     <span>前辈之策</span>
@@ -467,7 +467,7 @@ export default function Home() {
                   </div>
                 </div>
                 <p>两者的骨架其实相近：都从课程名额、已选人数与个人价值出发，给出九十九点的推荐去处。主要差别在于，笔者把<b>经验公式</b>替换为<b>可切换的分布假设与概率计算</b>，并用 <b>DP</b> 明确保证给定概率曲线下的整数全局最优。</p>
-                <p className="advice-source">旧工具页面署名：模型源自树洞 #1182418，JavaScript 网页由 @wyjjmzx 移植。谨向先行者致意。</p>
+                <p className="advice-source">前辈计算器的模型见树洞 #1182418，其 JavaScript 网页版本由 @wyjjmzx 移植；这里的“模型”与“移植”均指上述前辈工具。谨向先行者致意。</p>
               </div>
             </section>
           </aside>
