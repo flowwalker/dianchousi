@@ -1095,6 +1095,65 @@ export default function Home() {
                 <p className="model-conclusion">于是，所谓“质数模型”被准确地放在了它应在的位置：<MathInline>{"\\rho"}</MathInline> 描述有多少竞争者相信它，约化映射描述信徒如何投；它不是抽签系统对质数的偏爱。若你自己也想遵循仪式，则由独立的质数仪式开关把 DP 候选集合限制为正质数。</p>
               </div>
             </section>
+
+            <section>
+              <span className="chapter">09</span>
+              <div>
+                <p className="model-kicker">Standing on the shoulders of giants</p>
+                <h3>站在巨人的肩膀上</h3>
+                <p>这套模型并不是凭空出现的。前辈工具已经把“拥挤度、课程价值与九十九点分配”连成了一条可用的经验路线；我做的事情，是沿着这条路线继续追问：如果把抽签机制本身写清楚，能不能把经验判断拆成可替换的概率模型，再把分配问题交给严格的整数优化？</p>
+
+                <div className="shoulder-flow" aria-label="前辈路线与点筹司路线对照">
+                  <div className="shoulder-lane">
+                    <span className="shoulder-label">前辈路线</span>
+                    <div className="shoulder-track">
+                      <span>限数 / 已选<br />快乐值</span><b>→</b><span>经验公式<br />估计概率</span><b>→</b><span>爬山或解析调点</span>
+                    </div>
+                  </div>
+                  <div className="shoulder-lane shoulder-lane-current">
+                    <span className="shoulder-label">点筹司扩充</span>
+                    <div className="shoulder-track">
+                      <span>限数 / 已选<br />课程权重</span><b>→</b><span>先验中心 + 分布<br />质数约化</span><b>→</b><span>概率曲线 + DP</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sim-step">
+                  <div className="sim-step-head"><span className="sim-step-tag">前辈公式</span><h4>把拥挤度压成一个经验概率</h4><em>实用，但经验性强</em></div>
+                  <p>树洞系旧模型通常先用 <MathInline>{"m_i"}</MathInline> 表示第 <MathInline>{"i"}</MathInline> 门的预测平均投点，再用拥挤比例构造一个基准概率：</p>
+                  <MathBlock>{"p_i=\\left(\\frac{b_i-a_i}{b_i}\\right)^{33.5/m_i},\\qquad E_i=-v_i\\ln p_i."}</MathBlock>
+                  <p>随后把 <MathInline>{"E_i"}</MathInline> 与 <MathInline>{"p_i"}</MathInline> 代入归一化分配式，得到近似投点：</p>
+                  <MathBlock>{"x_i=\\frac{C-\\ln E_i}{\\ln p_i},\\qquad q_i\\approx\\frac{B+\\ell/2}{3}x_i-\\frac12."}</MathBlock>
+                  <p>这里的 <MathInline>{"C"}</MathInline> 是为满足整体预算而选取的归一化常数；不同页面会对平均投点、边界和调点步骤作不同的经验处理。它的优点是轻量、直观、容易落地，代价是竞争者分布、票池去重和不确定性都被压缩进少数经验参数。</p>
+                </div>
+
+                <div className="sim-step sim-step-key">
+                  <div className="sim-step-head"><span className="sim-step-tag">此间新解</span><h4>把经验中心展开成概率曲线，再做全局分配</h4><em>层层补齐未知量</em></div>
+                  <p>点筹司保留同样的问题入口，却把中间步骤显式拆开：</p>
+                  <MathBlock>{"x_i=\\max\\left(0,\\frac{b_i}{a_i}-1\\right)\\;\\longrightarrow\\;\\mu_i=f(x_i)\\;\\longrightarrow\\;D_i\\;\\longrightarrow\\;P_i(0{:}B)."}</MathBlock>
+                  <p>其中 <MathInline>{"f"}</MathInline> 可以是半余弦、Hill 或树洞先辈公式先验；<MathInline>{"D_i"}</MathInline> 再决定采用平均、正态、均匀或离散混合的竞争者分布。得到概率曲线后，统一写成：</p>
+                  <MathBlock>{"R_i(q)=\\begin{cases}\\omega_iP_i(q),&\\text{概率和},\\\\\\omega_i\\ln P_i(q),&\\text{概率积},\\end{cases}\\qquad F(i,s)=\\max_{q\\le s}\\{F(i-1,s-q)+R_i(q)\\}."}</MathBlock>
+                  <p>因此，前辈路线中的“分配九十九点”被保留下来，但求解器从局部调点升级为有限状态上的动态规划；前辈经验公式也不再被丢弃，而是作为可切换的历史先验继续存在。</p>
+                </div>
+
+                <div className="shoulder-notes">
+                  <div><strong>已经吸收</strong><span>拥挤度与课程价值的输入方式；树洞先辈公式先验；Joat 高级版提示的“竞争者投点不能只看一个固定平均值”。</span></div>
+                  <div><strong>暂未照搬</strong><span>Joat 的自适应对手模型目前参数较粗，且难以与本工具的分布、方差和质数占比统一，因此先保留为未来方向。</span></div>
+                  <div><strong>明确超出</strong><span>指数时间竞赛用于快速获得整条概率曲线；动态规划在给定曲线下保证整数全局最优，而不是依赖爬山过程的局部路径。</span></div>
+                </div>
+
+                <div className="source-box">
+                  <p className="source-box-title">树洞先辈投点计算器</p>
+                  <ul className="source-list">
+                    <li><a href="https://pan.baidu.com/s/1g_CK-OadgieLIjxZ0D9HWw" target="_blank" rel="noreferrer">模型资料 · 百度网盘</a></li>
+                    <li><a href="https://wyjjmzx.github.io/pku/toudian.html" target="_blank" rel="noreferrer">@wyjjmzx JavaScript 移植版</a></li>
+                    <li><a href="https://joat917.github.io/HTMGames/electivePoints.html" target="_blank" rel="noreferrer">Joat917 高级版</a></li>
+                    <li><a href="https://guyutongxue.site/pages/toudian/" target="_blank" rel="noreferrer">谷雨同学页面版</a></li>
+                  </ul>
+                  <p>谨向先行者致意。上面的链接用于回看前辈模型与实现；本章只讨论方法之间的承接关系，不把经验公式冒充为抽签规则本身。</p>
+                </div>
+              </div>
+            </section>
             </div>
             </CollapsibleContent>
           </article>
