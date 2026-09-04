@@ -14,6 +14,7 @@ export interface CourseInput {
   value: number;
   distribution: Distribution;
   primeOnly?: boolean;
+  primeShare?: number;
 }
 
 export interface ProbabilityCurve {
@@ -109,7 +110,11 @@ function sampleBasePoints(distribution: Distribution, rng: () => number) {
 
 function samplePoints(course: CourseInput, rng: () => number) {
   const points = sampleBasePoints(course.distribution, rng);
-  return course.primeOnly ? applyPrimePointRule(points, rng) : points;
+  if (!course.primeOnly) return points;
+  const primeShare = course.primeShare ?? 1;
+  if (primeShare <= 0) return points;
+  if (primeShare < 1 && rng() >= primeShare) return points;
+  return applyPrimePointRule(points, rng);
 }
 
 function quickselect(values: number[], target: number) {
@@ -190,8 +195,11 @@ function simulatedCurve(course: CourseInput, budget: number, samples: number, se
 function deterministicOpponentPoints(course: CourseInput): number | null {
   if (course.distribution.type !== 'average') return null;
   if (!course.primeOnly) return course.distribution.points;
+  const primeShare = course.primeShare ?? 1;
+  if (primeShare <= 0) return course.distribution.points;
   const candidates = primePointCandidates(course.distribution.points);
-  return candidates.length === 1 ? candidates[0] : null;
+  if (candidates.length === 1 && candidates[0] === course.distribution.points) return candidates[0];
+  return primeShare >= 1 && candidates.length === 1 ? candidates[0] : null;
 }
 
 function reward(probability: number, value: number, objective: Objective) {
@@ -210,6 +218,8 @@ export function validateCourses(courses: CourseInput[]) {
     if (!Number.isInteger(course.competitors) || course.competitors < 0) throw new Error(`${course.name}：竞争者人数必须是非负整数。`);
     if (!(course.value > 0)) throw new Error(`${course.name}：课程价值必须大于 0。`);
     const distribution = course.distribution;
+    const primeShare = course.primeShare ?? 1;
+    if (course.primeOnly && (!Number.isFinite(primeShare) || primeShare < 0 || primeShare > 1)) throw new Error(`${course.name}：质数投点信徒的预测占比须在 0—1。`);
     if (distribution.type === 'average' && !(distribution.points >= 0 && distribution.points <= 99)) throw new Error(`${course.name}：平均投点须在 0—99。`);
     if (distribution.type === 'uniform' && !(distribution.low >= 0 && distribution.high <= 99 && distribution.low <= distribution.high)) throw new Error(`${course.name}：均匀分布范围无效。`);
     if (distribution.type === 'normal' && !(distribution.mean >= 0 && distribution.mean <= 99 && distribution.mostWithin > 0)) throw new Error(`${course.name}：正态分布参数无效。`);
@@ -281,7 +291,7 @@ export function optimizeCourses(courses: CourseInput[], budget: number, objectiv
         probabilityGain: curves[index].probabilities[points] - curves[index].probabilities[0],
         nextPointGain: points < budget ? curves[index].probabilities[points + 1] - curves[index].probabilities[points] : 0,
         standardError: curves[index].standardErrors[points],
-        method: `${curves[index].method}${course.primeOnly ? ' · 质数化' : ''}`,
+        method: `${curves[index].method}${course.primeOnly ? ` · 质数化 ${Math.round((course.primeShare ?? 1) * 100)}%` : ''}`,
         curve: curves[index].probabilities,
       };
     }),
