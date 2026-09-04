@@ -380,8 +380,7 @@ function AdaptiveForecast({ course, distribution, family }: { course: CourseInpu
         : '离散混合';
   return (
     <div className="adaptive-forecast" aria-label="自动预测结果">
-      <span>自动预测</span>
-      <strong>{detail}</strong>
+      <strong><span>自动预测</span>{detail}</strong>
       <small>{priorLabels[family]} · 相对超额 {Number.isFinite(crowding) ? crowding.toFixed(3) : '∞'}</small>
     </div>
   );
