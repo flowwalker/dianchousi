@@ -450,7 +450,7 @@ export default function Home() {
 
       <div className="body-layout">
         <div className="body-main">
-      <section className="calculator-wrap" id="calculator">
+      <section className="calculator-wrap">
         <Reveal>
           <div className="section-heading" id="advice"><div><span className="seal">壹</span><p>筹策心法</p><h2>听君一席话</h2></div></div>
         </Reveal>
@@ -522,7 +522,7 @@ export default function Home() {
           </aside>
         </Reveal>
         <Reveal>
-          <div className="section-heading">
+          <div className="section-heading" id="calculator">
             <div><span className="seal">贰</span><p>筹点推演</p><h2>录入局势，分配九十九点</h2></div>
           </div>
         </Reveal>

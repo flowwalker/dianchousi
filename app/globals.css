@@ -252,7 +252,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .prime-switch [data-slot="switch-thumb"] { width: 15px; height: 15px; margin-left: 1px; background: #fffdf7; box-shadow: 0 1px 4px rgba(47, 46, 43, .28); }
 .course-dist { padding: 14px 16px 12px; background: rgba(63, 92, 107, .05); border: 1px dashed rgba(63, 92, 107, .3); border-radius: 12px; }
 .calculate-zone { text-align: center; margin-top: 38px; display: grid; justify-items: center; gap: 16px; }
-.section-heading[id="advice"] { scroll-margin-top: 76px; }
+.section-heading[id="advice"], .section-heading[id="calculator"] { scroll-margin-top: 76px; }
 .advice-card { position: relative; overflow: hidden; width: min(1180px, 100%); margin: 0 auto 36px; background: #fffefa; border: 1px solid rgba(47, 46, 43, .14); border-radius: 18px; box-shadow: 0 4px 12px rgba(74, 62, 40, .06), 0 26px 64px rgba(74, 62, 40, .14); color: #36363a; }
 .advice-card::before { content: ""; position: absolute; left: 92px; top: 0; bottom: 0; width: 1px; background: #efd1c8; pointer-events: none; }
 .advice-card::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 31px, rgba(36, 50, 59, .032) 31px 32px); pointer-events: none; }
