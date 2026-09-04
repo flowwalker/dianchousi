@@ -792,7 +792,8 @@ export default function Home() {
               <div>
                 <p className="model-kicker">A prime-point projection</p>
                 <h3>新思：质数约化建模</h3>
-                <p>“质数投点法”不会凭空改变某张票被抽中的机会；这里建模的，是<b>竞争者相信这种投法以后，群体票数分布将如何改变</b>。因此我们不另造一套抽签规则，而是在任一基础分布 <MathInline>{"D_i"}</MathInline> 与原有概率引擎之间，加入一道随机的“质数约化”映射。</p>
+                <p>从某种意义上来说，我们可以认为“质数投点法”是一种仪式，而实际没有任何作用。<br />但作为站在高处的人，我们是否可以为此如此建模，以最大化自身收益呢？</p>
+                <p>因此我们不另造一套抽签规则，而是在任一基础分布 <MathInline>{"D_i"}</MathInline> 与原有概率引擎之间，加入一道随机的“质数约化”映射。</p>
 
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">（1）</span><h4>规定玄学者的可选点数</h4><em>保留两个特殊端点</em></div>
