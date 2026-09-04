@@ -541,12 +541,18 @@ export default function Home() {
           <div className="section-heading" id="advice"><div><span className="seal">壹</span><p>筹策心法</p><h2>听君一席话</h2></div></div>
         </Reveal>
         <Reveal delay={90}>
+          <Collapsible>
           <aside className="advice-card" aria-label="筹策心法">
             <div className="advice-strip" aria-hidden="true">点筹司 · 筹策心法</div>
-            <header className="advice-head">
-              <span>ADVICE & GUIDE · v1.1</span>
-              <p>推演开始前的一席话：这个网站从何而来，以及如何把它用明白。</p>
-            </header>
+            <CollapsibleTrigger className="advice-head story-fold-trigger">
+              <span className="story-fold-copy">
+                <span>ADVICE & GUIDE · v1.1</span>
+                <span className="story-fold-lede">推演开始前的一席话：这个网站从何而来，以及如何把它用明白。</span>
+              </span>
+              <span className="story-fold-cue" aria-hidden="true"><ChevronDown /><ChevronDown /><ChevronDown /></span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="story-fold-content">
+            <div className="story-fold-inner">
             <section className="advice-sec">
               <span className="chapter">01</span>
               <div>
@@ -602,7 +608,10 @@ export default function Home() {
                 <p>这不会赋予质数额外的中签加成。若另行开启<b>质数仪式</b>，DP 才会把你自己的每门投点严格限制为 2—97 的正质数，并允许预算留余。具体原理与数学建模参见文末第八章。</p>
               </div>
             </section>
+            </div>
+            </CollapsibleContent>
           </aside>
+          </Collapsible>
         </Reveal>
         <Reveal>
           <div className="section-heading" id="calculator">
@@ -616,6 +625,7 @@ export default function Home() {
               <CollapsibleTrigger className="fold-panel-trigger">
                 <div className="control-title"><ScrollText size={18} /><span>优化目标</span></div>
                 <span className="fold-panel-summary">{objectiveLabels[objectiveKind].title} · {weighted ? '已加权' : '等权'} · 预算 {budget}</span>
+                <span className="fold-cue" aria-hidden="true"><ChevronDown /><ChevronDown /><ChevronDown /></span>
                 <ChevronDown className="fold-chevron" size={18} />
               </CollapsibleTrigger>
               <CollapsibleContent className="fold-panel-content">
@@ -648,6 +658,7 @@ export default function Home() {
             <CollapsibleTrigger className="fold-panel-trigger">
               <div className="control-title"><Gauge size={18} /><span>竞争者投点假设</span></div>
               <span className="fold-panel-summary">{predictionModeLabels[predictionMode].title} · {predictionMode === 'manual-preset' ? '逐课分布' : priorLabels[priorFamily]} · {competitorPrime ? `质数 ${Math.round(primeShare * 100)}%` : '质数关闭'}</span>
+              <span className="fold-cue" aria-hidden="true"><ChevronDown /><ChevronDown /><ChevronDown /></span>
               <ChevronDown className="fold-chevron" size={18} />
             </CollapsibleTrigger>
             <CollapsibleContent className="fold-panel-content">
@@ -805,12 +816,18 @@ export default function Home() {
           <div className="section-heading"><div><span className="seal">肆</span><p>建模卷宗</p><h2>从票池到最优分配</h2></div><BookOpen size={40} /></div>
         </Reveal>
         <Reveal delay={110}>
+          <Collapsible>
           <article className="model-paper">
             <div className="paper-strip" aria-hidden="true">点筹司 · 建模卷宗</div>
-            <header className="model-paper-header">
-              <span>MATHEMATICAL MODEL · v2.0</span>
-              <p>天下 PKUer 苦 P 大赌场久矣。为此特设此阵，以助沙漠尘客走出迷茫的沙漠……</p>
-            </header>
+            <CollapsibleTrigger className="model-paper-header story-fold-trigger">
+              <span className="story-fold-copy">
+                <span>MATHEMATICAL MODEL · v2.0</span>
+                <span className="story-fold-lede">天下 PKUer 苦 P 大赌场久矣。为此特设此阵，以助沙漠尘客走出迷茫的沙漠……</span>
+              </span>
+              <span className="story-fold-cue" aria-hidden="true"><ChevronDown /><ChevronDown /><ChevronDown /></span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="story-fold-content">
+            <div className="story-fold-inner">
 
             <section>
               <span className="chapter">01</span>
@@ -1072,7 +1089,10 @@ export default function Home() {
                 <p className="model-conclusion">于是，所谓“质数模型”被准确地放在了它应在的位置：<MathInline>{"\\rho"}</MathInline> 描述有多少竞争者相信它，约化映射描述信徒如何投；它不是抽签系统对质数的偏爱。若你自己也想遵循仪式，则由独立的质数仪式开关把 DP 候选集合限制为正质数。</p>
               </div>
             </section>
+            </div>
+            </CollapsibleContent>
           </article>
+          </Collapsible>
         </Reveal>
       </section>
         </div>
