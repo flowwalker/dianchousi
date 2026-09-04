@@ -471,6 +471,15 @@ export default function Home() {
                 <p className="advice-source">前辈计算器的模型见树洞 #1182418，其 JavaScript 网页版本由 @wyjjmzx 移植；这里的“模型”与“移植”均指上述前辈工具。谨向先行者致意。</p>
               </div>
             </section>
+            <section className="advice-sec">
+              <span className="chapter">04</span>
+              <div>
+                <p className="model-kicker">On the prime-point model</p>
+                <h3>关于质数模型</h3>
+                <p>假设除自己以外的所有人属于质数投点法玄学者，或者 0 点摆烂汉，或者 all in 赌王。开启<b>竞争者质数化假设</b>后，网页会先依照所选基础分布预测每名竞争者的投点，再将除 0 与 99 之外的结果就近约化到质数；若与上下两个可选点等距，则各取 50%。</p>
+                <p>这只是对竞争者行为的附加假设，不会限制你自己的投点，也不表示质数本身具有额外的中签加成。具体原理与数学建模参见文末第八章。</p>
+              </div>
+            </section>
           </aside>
         </Reveal>
         <Reveal>
@@ -524,7 +533,6 @@ export default function Home() {
                   <div className="prime-mark" aria-hidden="true">质</div>
                   <label htmlFor={`prime-${course.id}`}>
                     <strong>竞争者质数化假设</strong>
-                    <small>假设除自己以外的所有人属于质数投点法玄学者，或者 0 点摆烂汉，或者 all in 赌王</small>
                   </label>
                   <Switch id={`prime-${course.id}`} className="prime-switch" checked={Boolean(course.primeOnly)} onCheckedChange={(checked) => updateCourse(course.id, { primeOnly: checked })} aria-label={`${course.name}启用质数化竞争者投点`} />
                 </div>
@@ -603,7 +611,7 @@ export default function Home() {
               <span className="chapter">01</span>
               <div>
                 <p className="model-kicker">The decision problem</p>
-                <h3>我们到底在解决什么问题？</h3>
+                <h3>我们在解决什么问题？</h3>
                 <p>共有 <MathInline>{"\\ell"}</MathInline> 门课程。</p>
                 <p>课程 <MathInline>{"i"}</MathInline> 有 <MathInline>{"a_i"}</MathInline> 个抽签名额、<MathInline>{"b_i"}</MathInline> 名不包含你的竞争者；你对它的权重意愿记作 <MathInline>{"v_i"}</MathInline>，真正要决定的投点记作 <MathInline>{"q_i"}</MathInline>。</p>
                 <p>投零点并非没有票：投入 <MathInline>{"q_i"}</MathInline> 点，实际拥有 <MathInline>{"w_i=q_i+1"}</MathInline> 张票。</p>
@@ -696,11 +704,6 @@ export default function Home() {
                   <div className="sim-step-head"><span className="sim-step-tag">分群</span><h4>离散混合</h4><em>直接描述不同投点人群</em></div>
                   <p>离散混合模式把若干典型投点 <MathInline>{"c_{ih}"}</MathInline> 与其比例 <MathInline>{"p_{ih}"}</MathInline> 直接列出，可用来描述零点党、普通投点者和高点或满点投点者。</p>
                 </div>
-                <div className="sim-step sim-step-key">
-                  <div className="sim-step-head"><span className="sim-step-tag">修饰</span><h4>质数化投点</h4><em>叠加于任一基础分布</em></div>
-                  <p>若相信竞争者遵循“质数投点法”，先由上述基础分布生成潜在投点 <MathInline>{"X_{ij}"}</MathInline>，再映射到允许集合 <MathInline>{"\\mathcal A=\\{0,2,3,5,\\ldots,97,99\\}"}</MathInline> 中距离最近的点。零点与满点原样保留；若上下两个允许点距离相同，则各以一半概率选取。</p>
-                  <MathBlock note="质数化只修饰竞争者分布，不限制你自己的候选投点 q。">{"Q_{ij}=R_{\\mathcal A}(X_{ij}),\\qquad R_{\\mathcal A}(x)\\in\\operatorname*{arg\\,min}_{p\\in\\mathcal A}|p-x|."}</MathBlock>
-                </div>
                 <p className="model-conclusion">仅知道平均投点，通常不足以确定随机分布模式下的中签率。抽签包含排序、去重和门槛，概率会受到整个分布形状影响；因此最好把不确定性明确写进 <MathInline>{"D_i"}</MathInline>，并比较几种合理假设下的结果。</p>
               </div>
             </section>
@@ -781,6 +784,60 @@ export default function Home() {
 
                 <MathBlock>{"\\boxed{\\text{实况+经验假设}\\;\\longrightarrow\\;P_i(0{:}B)\\;\\longrightarrow\\;R_i(0{:}B)\\;\\longrightarrow\\;\\mathrm{DP}\\;\\longrightarrow\\;(q_1^\\star,\\ldots,q_\\ell^\\star)}"}</MathBlock>
                 <p className="model-conclusion">至此，赌场不过云烟——<del>虽说，首先你得先估准其他人的投点分布</del>，而能成此者，也不枉为赌王（x）。</p>
+              </div>
+            </section>
+
+            <section>
+              <span className="chapter">08</span>
+              <div>
+                <p className="model-kicker">A prime-point projection</p>
+                <h3>新思：质数约化建模</h3>
+                <p>“质数投点法”不会凭空改变某张票被抽中的机会；这里建模的，是<b>竞争者相信这种投法以后，群体票数分布将如何改变</b>。因此我们不另造一套抽签规则，而是在任一基础分布 <MathInline>{"D_i"}</MathInline> 与原有概率引擎之间，加入一道随机的“质数约化”映射。</p>
+
+                <div className="sim-step">
+                  <div className="sim-step-head"><span className="sim-step-tag">（1）</span><h4>规定玄学者的可选点数</h4><em>保留两个特殊端点</em></div>
+                  <p>把 0 点视作摆烂汉的选择，把 99 点视作 all in 赌王的选择，其余可选点数只留下不超过 99 的质数。于是允许集合为：</p>
+                  <MathBlock>{"\\mathcal A=\\{0,99\\}\\cup\\{p\\in\\mathbb Z:2\\le p\\le97,\\ p\\text{ 为质数}\\}."}</MathBlock>
+                  <p>先按原本选择的平均、均匀、正态或离散混合假设，生成竞争者 <MathInline>{"j"}</MathInline> 的潜在投点：</p>
+                  <MathBlock>{"X_{ij}\\sim D_i,\\qquad 0\\le X_{ij}\\le99."}</MathBlock>
+                </div>
+
+                <div className="sim-step">
+                  <div className="sim-step-head"><span className="sim-step-tag">（2）</span><h4>把潜在投点就近约化</h4><em>等距时各取一半</em></div>
+                  <p>对任意潜在投点 <MathInline>{"x"}</MathInline>，先找出允许集合中与它最近的点。最近点若唯一便直接采用；若恰好夹在两个允许点的正中间，则随机投向两边，各占一半概率。</p>
+                  <MathBlock>{"M_{\\mathcal A}(x)=\\operatorname*{arg\\,min}_{p\\in\\mathcal A}|p-x|."}</MathBlock>
+                  <MathBlock>{"\\Pr(Q_{ij}=p\\mid X_{ij}=x)=\\begin{cases}1,&M_{\\mathcal A}(x)=\\{p\\},\\\\\\tfrac12,&M_{\\mathcal A}(x)=\\{p_-,p_+\\}\\text{ 且 }p\\in\\{p_-,p_+\\},\\\\0,&\\text{其他}.\\end{cases}"}</MathBlock>
+                  <p>例如，20 会约化为 19；12 与 11、13 等距，故各有一半概率；98 则在 97 与特殊端点 99 之间各半。0 与 99 本就在允许集合中，保持不变。</p>
+                </div>
+
+                <div className="sim-step sim-step-key">
+                  <div className="sim-step-head"><span className="sim-step-tag">（3）</span><h4>得到真正参与抽签的分布</h4><em>概率质量重新汇聚</em></div>
+                  <p>记上面的随机约化核为 <MathInline>{"K_{\\mathcal A}(p\\mid x)"}</MathInline>。基础分布在相邻整数上的概率质量会被汇聚到附近的质数或两个端点上，从而诱导出真正的竞争者投点分布：</p>
+                  <MathBlock>{"\\pi_i(p)=\\Pr(Q_{ij}=p)=\\int_{0}^{99}K_{\\mathcal A}(p\\mid x)\\,\\mathrm dD_i(x),\\qquad p\\in\\mathcal A."}</MathBlock>
+                  <p>若基础投点本身是整数离散变量，上式就是有限求和：</p>
+                  <MathBlock>{"\\pi_i(p)=\\sum_{x=0}^{99}K_{\\mathcal A}(p\\mid x)\\Pr(X_{ij}=x)."}</MathBlock>
+                  <p>这一步解释了质数假设为何可能影响结果：它并非给质数增加“幸运加成”，而是改变竞争者票数的完整分布；而排序、去重与中签门槛通常不只由平均票数决定。</p>
+                </div>
+
+                <div className="sim-step">
+                  <div className="sim-step-head"><span className="sim-step-tag">（4）</span><h4>接回指数竞赛概率引擎</h4><em>其余规则完全不变</em></div>
+                  <p>约化后的竞争者投 <MathInline>{"Q_{ij}"}</MathInline> 点，拥有 <MathInline>{"W_{ij}=Q_{ij}+1"}</MathInline> 张票；其首次出现时间仍服从参数为票数的指数分布：</p>
+                  <MathBlock>{"Q_{ij}\\sim\\pi_i,\\qquad W_{ij}=Q_{ij}+1,\\qquad T_{ij}\\mid Q_{ij}\\sim\\operatorname{Exp}(Q_{ij}+1)."}</MathBlock>
+                  <p>把竞争者时间的第 <MathInline>{"a_i"}</MathInline> 小值记作 <MathInline>{"S_i"}</MathInline>，你投任意 <MathInline>{"q"}</MathInline> 点时，在该轮环境下的条件中签概率仍为：</p>
+                  <MathBlock>{"S_i=T_{i,(a_i)},\\qquad \\Pr(\\text{你中签}\\mid S_i)=1-e^{-(q+1)S_i}."}</MathBlock>
+                  <p>重复生成竞争者环境，便可一次性估计质数约化假设下从 0 到预算上限的完整概率曲线：</p>
+                  <MathBlock>{"\\widehat P_i^{\\,\\mathrm{prime}}(q)=\\frac1N\\sum_{r=1}^{N}\\left[1-e^{-(q+1)S_i^{(r)}}\\right],\\qquad q=0,\\ldots,B."}</MathBlock>
+                </div>
+
+                <div className="sim-step">
+                  <div className="sim-step-head"><span className="sim-step-tag">（5）</span><h4>平均假设下的两个特例</h4><em>决定解析或模拟</em></div>
+                  <p>若基础分布退化在单点 <MathInline>{"t_i"}</MathInline>，且最近允许点只有一个 <MathInline>{"p_i"}</MathInline>，则所有竞争者最终仍固定同质投点，可以把 <MathInline>{"t_i"}</MathInline> 替换为 <MathInline>{"p_i"}</MathInline>，继续使用第六章的闭式解。</p>
+                  <MathBlock>{"D_i=\\delta_{t_i},\\quad M_{\\mathcal A}(t_i)=\\{p_i\\}\\quad\\Longrightarrow\\quad Q_{ij}\\equiv p_i."}</MathBlock>
+                  <p>若 <MathInline>{"t_i"}</MathInline> 恰位于两个允许点 <MathInline>{"p_-"}</MathInline> 与 <MathInline>{"p_+"}</MathInline> 的中点，每名竞争者都会独立地二选一，群体不再同质，因此回到蒙特卡洛求解。</p>
+                  <MathBlock>{"D_i=\\delta_{t_i},\\quad M_{\\mathcal A}(t_i)=\\{p_-,p_+\\}\\quad\\Longrightarrow\\quad Q_{ij}\\sim\\tfrac12\\delta_{p_-}+\\tfrac12\\delta_{p_+}."}</MathBlock>
+                </div>
+
+                <p className="model-conclusion">于是，所谓“质数模型”被准确地放在了它应在的位置：它是竞争者行为分布的一次约化，而不是抽签系统对质数的偏爱；它只约束别人如何投，不约束你自己的候选点数。</p>
               </div>
             </section>
           </article>
