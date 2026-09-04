@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { applyPrimePointRule, type CourseInput, optimizeCourses, primePointCandidates } from './lottery.ts';
+import {
+  DEFAULT_ADAPTIVE_PARAMETERS,
+  POSITIVE_PRIME_POINT_OPTIONS,
+  adaptiveDistribution,
+  adaptiveMeanPoints,
+  adaptiveSpreadIndex,
+  applyPrimePointRule,
+  type CourseInput,
+  optimizeCourses,
+  primePointCandidates,
+} from './lottery.ts';
 
 void test('质数化保留 0、质数与 99', () => {
   assert.deepEqual(primePointCandidates(0), [0]);
@@ -73,4 +83,37 @@ void test('部分质数化占比进入可复现的混合分布模拟', () => {
 
   assert.equal(first.courses[0].method, '指数竞赛模拟 · 质数化 40%');
   assert.deepEqual(first.courses[0].curve, second.courses[0].curve);
+});
+
+void test('半余弦先验在相对超额一半处给出 49.5 点且离散度达到峰值', () => {
+  assert.equal(adaptiveMeanPoints(100, 150, 'cosine'), 49.49999999999999);
+  assert.ok(Math.abs(adaptiveSpreadIndex(100, 150, 'cosine') - 1) < 1e-12);
+  assert.ok(Math.abs(adaptiveMeanPoints(100, 200, 'cosine') - 99) < 1e-12);
+  assert.ok(Math.abs(adaptiveSpreadIndex(100, 200, 'cosine')) < 1e-12);
+});
+
+void test('自动均匀分布与正态分布使用同一目标方差', () => {
+  const normal = adaptiveDistribution(100, 150, 'cosine', 'normal', DEFAULT_ADAPTIVE_PARAMETERS);
+  const uniform = adaptiveDistribution(100, 150, 'cosine', 'uniform', DEFAULT_ADAPTIVE_PARAMETERS);
+  assert.equal(normal.type, 'normal');
+  assert.equal(uniform.type, 'uniform');
+  if (normal.type !== 'normal' || uniform.type !== 'uniform') return;
+  const normalSigma = normal.mostWithin / 3;
+  const uniformSigma = (uniform.high - uniform.low) / Math.sqrt(12);
+  assert.ok(Math.abs(normalSigma - uniformSigma) < 0.5);
+});
+
+void test('质数仪式由动态规划直接限制为正质数且不允许 0、1、99', () => {
+  const courses: CourseInput[] = [
+    { id: 'a', name: '甲', capacity: 2, competitors: 5, value: 1, distribution: { type: 'average', points: 20 } },
+    { id: 'b', name: '乙', capacity: 2, competitors: 5, value: 1, distribution: { type: 'average', points: 20 } },
+  ];
+  const result = optimizeCourses(courses, 7, 'sum', 100, 42, { ownPointPolicy: 'positive-primes' });
+  const allowed = new Set<number>(POSITIVE_PRIME_POINT_OPTIONS);
+  assert.ok(result.allocations.every((points) => allowed.has(points)));
+  assert.ok(result.usedPoints <= 7);
+  assert.throws(
+    () => optimizeCourses(courses, 3, 'sum', 100, 42, { ownPointPolicy: 'positive-primes' }),
+    /无可行解/,
+  );
 });

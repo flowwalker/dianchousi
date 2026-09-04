@@ -6,6 +6,21 @@ export type Distribution =
 
 export type Objective = 'sum' | 'weighted_sum' | 'product' | 'weighted_product';
 
+export type PriorFamily = 'cosine' | 'hill' | 'legacy';
+export type AdaptiveShape = 'average' | 'normal' | 'uniform';
+
+export interface AdaptiveParameters {
+  cosineScale: number;
+  hillScale: number;
+  hillGamma: number;
+  sigmaMin: number;
+  sigmaMax: number;
+}
+
+export interface OptimizationOptions {
+  ownPointPolicy?: 'all-integers' | 'positive-primes';
+}
+
 export interface CourseInput {
   id: string;
   name: string;
@@ -64,6 +79,78 @@ function gaussian(rng: () => number) {
 }
 
 export const PRIME_POINT_OPTIONS = [0, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 99] as const;
+export const POSITIVE_PRIME_POINT_OPTIONS = PRIME_POINT_OPTIONS.filter((points) => points !== 0 && points !== 99);
+
+export const DEFAULT_ADAPTIVE_PARAMETERS: AdaptiveParameters = {
+  cosineScale: 1,
+  hillScale: 0.5,
+  hillGamma: 2,
+  sigmaMin: 2,
+  sigmaMax: 10,
+};
+
+function clamp(value: number, low: number, high: number) {
+  return Math.min(high, Math.max(low, value));
+}
+
+export function relativeCrowding(capacity: number, competitors: number) {
+  if (capacity <= 0) return competitors > 0 ? Number.POSITIVE_INFINITY : 0;
+  return Math.max(0, competitors / capacity - 1);
+}
+
+export function adaptiveMeanPoints(capacity: number, competitors: number, family: PriorFamily, parameters: AdaptiveParameters = DEFAULT_ADAPTIVE_PARAMETERS) {
+  const crowding = relativeCrowding(capacity, competitors);
+  if (!Number.isFinite(crowding)) return 99;
+  if (crowding <= 0) return 0;
+  if (family === 'cosine') {
+    const z = clamp(crowding / Math.max(1e-6, parameters.cosineScale), 0, 1);
+    return 99 * (1 - Math.cos(Math.PI * z)) / 2;
+  }
+  if (family === 'hill') {
+    const scale = Math.max(1e-6, parameters.hillScale);
+    const gamma = Math.max(1.0001, parameters.hillGamma);
+    const xg = Math.pow(crowding, gamma);
+    return 99 * xg / (xg + Math.pow(scale, gamma));
+  }
+  const ratio = competitors / Math.max(1, capacity);
+  if (ratio <= 1) return 0;
+  const y = 1 + Math.pow(ratio - 1, 1 / 8);
+  return clamp(0.92 * (-101 * y * y + 392.6 * y - 347.8) + 0.08 * 99, 0, 99);
+}
+
+export function adaptiveSpreadIndex(capacity: number, competitors: number, family: PriorFamily, parameters: AdaptiveParameters = DEFAULT_ADAPTIVE_PARAMETERS) {
+  const crowding = relativeCrowding(capacity, competitors);
+  if (!Number.isFinite(crowding) || crowding <= 0) return 0;
+  if (family === 'cosine') {
+    const z = clamp(crowding / Math.max(1e-6, parameters.cosineScale), 0, 1);
+    return Math.sin(Math.PI * z);
+  }
+  if (family === 'hill') {
+    const scale = Math.max(1e-6, parameters.hillScale);
+    const gamma = Math.max(1.0001, parameters.hillGamma);
+    const z = crowding / scale;
+    const derivative = gamma / scale * Math.pow(z, gamma - 1) / Math.pow(1 + Math.pow(z, gamma), 2);
+    const peakZ = Math.pow((gamma - 1) / (gamma + 1), 1 / gamma);
+    const peak = gamma / scale * Math.pow(peakZ, gamma - 1) / Math.pow(1 + Math.pow(peakZ, gamma), 2);
+    return peak > 0 ? clamp(derivative / peak, 0, 1) : 0;
+  }
+  const meanShare = adaptiveMeanPoints(capacity, competitors, family, parameters) / 99;
+  return clamp(4 * meanShare * (1 - meanShare), 0, 1);
+}
+
+export function adaptiveDistribution(capacity: number, competitors: number, family: PriorFamily, shape: AdaptiveShape, parameters: AdaptiveParameters = DEFAULT_ADAPTIVE_PARAMETERS): Distribution {
+  const mean = adaptiveMeanPoints(capacity, competitors, family, parameters);
+  if (shape === 'average') return { type: 'average', points: mean };
+  const spread = adaptiveSpreadIndex(capacity, competitors, family, parameters);
+  const sigma = parameters.sigmaMin + (parameters.sigmaMax - parameters.sigmaMin) * spread;
+  if (shape === 'normal') return { type: 'normal', mean, mostWithin: Math.max(0.1, 3 * sigma) };
+  const halfWidth = Math.sqrt(3) * sigma;
+  return {
+    type: 'uniform',
+    low: Math.round(clamp(mean - halfWidth, 0, 99)),
+    high: Math.round(clamp(mean + halfWidth, 0, 99)),
+  };
+}
 
 export function primePointCandidates(points: number): number[] {
   const bounded = Math.min(99, Math.max(0, points));
@@ -232,8 +319,15 @@ export function validateCourses(courses: CourseInput[]) {
   }
 }
 
-export function optimizeCourses(courses: CourseInput[], budget: number, objective: Objective, samples: number, seed: number): OptimizationResult {
+export function optimizeCourses(courses: CourseInput[], budget: number, objective: Objective, samples: number, seed: number, options: OptimizationOptions = {}): OptimizationResult {
   validateCourses(courses);
+  const ownPointPolicy = options.ownPointPolicy ?? 'all-integers';
+  const pointOptions = ownPointPolicy === 'positive-primes'
+    ? POSITIVE_PRIME_POINT_OPTIONS.filter((points) => points <= budget)
+    : Array.from({ length: budget + 1 }, (_, points) => points);
+  if (pointOptions.length === 0 || (ownPointPolicy === 'positive-primes' && courses.length * 2 > budget)) {
+    throw new Error(`质数仪式要求每门课至少投入 2 点；当前 ${courses.length} 门课在 ${budget} 点预算下无可行解。`);
+  }
   const curves = courses.map((course, index) => {
     const opponentPoints = deterministicOpponentPoints(course);
     return opponentPoints === null
@@ -246,7 +340,8 @@ export function optimizeCourses(courses: CourseInput[], budget: number, objectiv
   dp[0][0] = 0;
   for (let i = 1; i <= count; i += 1) {
     for (let used = 0; used <= budget; used += 1) {
-      for (let points = 0; points <= used; points += 1) {
+      for (const points of pointOptions) {
+        if (points > used) break;
         const previous = dp[i - 1][used - points];
         const currentReward = reward(curves[i - 1].probabilities[points], courses[i - 1].value, objective);
         const score = previous + currentReward;
@@ -258,7 +353,10 @@ export function optimizeCourses(courses: CourseInput[], budget: number, objectiv
     }
   }
   const best = Math.max(...dp[count]);
-  if (!Number.isFinite(best)) throw new Error('当前设置下有课程中签率恒为 0，概率积目标无法计算。');
+  if (!Number.isFinite(best)) {
+    if (ownPointPolicy === 'positive-primes') throw new Error('当前预算无法拆成每门课均为正质数的投点方案。');
+    throw new Error('当前设置下有课程中签率恒为 0，概率积目标无法计算。');
+  }
   const usedPoints = dp[count].findIndex((score) => Math.abs(score - best) < 1e-12);
   const allocations = Array(count).fill(0);
   let remaining = usedPoints;

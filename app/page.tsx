@@ -5,18 +5,50 @@ import { Bird, BookOpen, ChevronDown, ChevronUp, Flame, Gauge, House, Mountain, 
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { Switch } from '@/components/ui/switch';
-import { type CourseInput, type Distribution, type Objective, type OptimizationResult, optimizeCourses } from '@/lib/lottery';
+import {
+  DEFAULT_ADAPTIVE_PARAMETERS,
+  adaptiveDistribution,
+  relativeCrowding,
+  type AdaptiveParameters,
+  type AdaptiveShape,
+  type CourseInput,
+  type Distribution,
+  type Objective,
+  type OptimizationResult,
+  type PriorFamily,
+  optimizeCourses,
+} from '@/lib/lottery';
 
 const initialCourses: CourseInput[] = [
   { id: 'course-1', name: '课程一', capacity: 400, competitors: 500, value: 1, distribution: { type: 'average', points: 45 } },
   { id: 'course-2', name: '课程二', capacity: 28, competitors: 48, value: 1, distribution: { type: 'average', points: 85 } },
 ];
 
-const objectiveLabels: Record<Objective, { title: string; note: string }> = {
-  sum: { title: '概率和', note: '尽量多中几门' },
-  weighted_sum: { title: '加权概率和', note: '照顾权重意愿' },
+type ObjectiveKind = 'mean' | 'product';
+type PredictionMode = 'adaptive' | 'advanced' | 'manual-adaptive' | 'manual-preset';
+
+const objectiveLabels: Record<ObjectiveKind, { title: string; note: string }> = {
+  mean: { title: '概率均值', note: '尽量多中几门' },
   product: { title: '概率积', note: '我要全中！' },
-  weighted_product: { title: '加权概率积', note: '有选择的全中' },
+};
+
+const predictionModeLabels: Record<PredictionMode, { title: string; note: string }> = {
+  adaptive: { title: '自适应预测', note: '由拥挤度直接预测中心' },
+  advanced: { title: '进阶自适应预测', note: '自动补出群体分布' },
+  'manual-adaptive': { title: '手动适应预测', note: '开放全局模型参数' },
+  'manual-preset': { title: '手动优化预设', note: '逐课指定完整分布' },
+};
+
+const priorLabels: Record<PriorFamily, string> = {
+  cosine: 'A · 半余弦先验',
+  hill: 'B · Hill 先验',
+  legacy: 'C · 树洞先辈公式',
+};
+
+const adaptiveShapeLabels: Record<AdaptiveShape, string> = {
+  average: '平均假设',
+  normal: '正态分布假设',
+  uniform: '均匀分布假设',
 };
 
 const distributionLabels: Record<Distribution['type'], string> = {
@@ -330,9 +362,42 @@ function DistributionMixtureFields({ distribution, onChange }: { distribution: D
   );
 }
 
+function AdaptiveForecast({ course, distribution, family }: { course: CourseInput; distribution: Distribution; family: PriorFamily }) {
+  const crowding = relativeCrowding(course.capacity, course.competitors);
+  const mean = distribution.type === 'average'
+    ? distribution.points
+    : distribution.type === 'normal'
+      ? distribution.mean
+      : distribution.type === 'uniform'
+        ? (distribution.low + distribution.high) / 2
+        : 0;
+  const detail = distribution.type === 'average'
+    ? `同质投点 ${mean.toFixed(1)}`
+    : distribution.type === 'normal'
+      ? `μ ${mean.toFixed(1)} · σ ${(distribution.mostWithin / 3).toFixed(1)}`
+      : distribution.type === 'uniform'
+        ? `整数区间 ${distribution.low}—${distribution.high}`
+        : '离散混合';
+  return (
+    <div className="adaptive-forecast" aria-label="自动预测结果">
+      <span>自动预测</span>
+      <strong>{detail}</strong>
+      <small>{priorLabels[family]} · 相对超额 {Number.isFinite(crowding) ? crowding.toFixed(3) : '∞'}</small>
+    </div>
+  );
+}
+
 export default function Home() {
   const [courses, setCourses] = useState(initialCourses);
-  const [objective, setObjective] = useState<Objective>('product');
+  const [objectiveKind, setObjectiveKind] = useState<ObjectiveKind>('product');
+  const [weighted, setWeighted] = useState(false);
+  const [predictionMode, setPredictionMode] = useState<PredictionMode>('adaptive');
+  const [priorFamily, setPriorFamily] = useState<PriorFamily>('cosine');
+  const [adaptiveShape, setAdaptiveShape] = useState<AdaptiveShape>('average');
+  const [adaptiveParameters, setAdaptiveParameters] = useState<AdaptiveParameters>({ ...DEFAULT_ADAPTIVE_PARAMETERS });
+  const [competitorPrime, setCompetitorPrime] = useState(false);
+  const [primeShare, setPrimeShare] = useState(1);
+  const [primeRitual, setPrimeRitual] = useState(false);
   const [budget, setBudget] = useState(99);
   const [samples, setSamples] = useState(20_000);
   const [seed, setSeed] = useState(20_260_903);
@@ -343,7 +408,23 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [activeSection, setActiveSection] = useState('top');
   const resultsRef = useRef<HTMLElement>(null);
-  const usesCourseWeights = objective === 'weighted_sum' || objective === 'weighted_product';
+  const usesCourseWeights = weighted;
+  const objective: Objective = objectiveKind === 'mean'
+    ? (weighted ? 'weighted_sum' : 'sum')
+    : (weighted ? 'weighted_product' : 'product');
+
+  const distributionFor = (course: CourseInput) => {
+    if (predictionMode === 'manual-preset') return course.distribution;
+    const shape = predictionMode === 'adaptive' ? 'average' : adaptiveShape;
+    return adaptiveDistribution(course.capacity, course.competitors, priorFamily, shape, adaptiveParameters);
+  };
+
+  const effectiveCourses = courses.map((course) => ({
+    ...course,
+    distribution: distributionFor(course),
+    primeOnly: competitorPrime,
+    primeShare,
+  }));
 
   useEffect(() => {
     const onScroll = () => {
@@ -388,7 +469,12 @@ export default function Home() {
     setError('');
     setTimeout(() => {
       try {
-        setResult(optimizeCourses(courses, budget, objective, samples, seed));
+        if (predictionMode === 'manual-adaptive' && adaptiveShape !== 'average' && adaptiveParameters.sigmaMax < adaptiveParameters.sigmaMin) {
+          throw new Error('中段最大 σ 不能小于两端最小 σ。');
+        }
+        setResult(optimizeCourses(effectiveCourses, budget, objective, samples, seed, {
+          ownPointPolicy: primeRitual ? 'positive-primes' : 'all-integers',
+        }));
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : '推演失败，请检查输入。');
       } finally {
@@ -438,8 +524,8 @@ export default function Home() {
           <div className="tips-card">
             <div className="tips-head"><Sparkles size={14} /><span>Tips</span></div>
             <ul>
-              <li><b>课程权重意愿 v</b>：对各门课你的倾向权重，建议自行归一化，也可凭感觉加权；只有在选择对应的加权模式以后才起到作用～</li>
-              <li><b>竞争者投点假设</b>：大概估计群体规律，总之可以都算算，最后选心理更倾向的～</li>
+              <li><b>课程权重意愿 v</b>：打开统一加权后才会显示；只需表达课程之间的相对偏好～</li>
+              <li><b>竞争者投点假设</b>：默认可由限数与已选数自动预测，也可进阶描述分布或逐课手填。</li>
               <li><b>已选数 b</b>：填当门课当前总人数（记得去掉你自己）</li>
               <li><b>限数 a</b>：这门课打算抽走的名额数</li>
             </ul>
@@ -476,18 +562,15 @@ export default function Home() {
               <div>
                 <p className="model-kicker">How to use</p>
                 <h3>关于使用的小引导</h3>
-                <p><b>极简使用</b>：无需关注课程权重，按照选课网填入<b>限数</b>和当前<b>已选数</b>；然后根据自己在树洞的了解和常识<b>预测其余人的平均投点</b>。</p>
-                <p>例如：爆满英语课 / 体育课 / 爆满通识课至少都得估 &gt;80，而政治课等一般再怎么投点也不会 &gt;40，略微满的通识英语课则估 &lt;10……诸如此类。</p>
+                <p><b>极简使用</b>：保持默认的“自适应预测 A”，只需按照选课网填入<b>限数</b>和当前<b>已选数</b>；系统会根据相对超额自动生成竞争者的中心投点。</p>
                 <div className="var-tips">
                   <p className="var-tips-head"><Sparkles size={13} /><span>Tips</span></p>
                   <ul>
                     <li><span>虽说估计别人投点是一件困难的事情，但是事实上只要大概从 0、5、20、50、70、90 中选择一者已经足矣。后续也会进一步稍微更新一点思考，用于通过对于一般不熟悉的课程使用限数 / 已选定义“拥挤度”来直接预测别人的投点。</span></li>
                   </ul>
                 </div>
-                <p><b>进阶使用</b>：均匀分布——假设在一个区间内均匀分布；</p>
-                <p>正态分布——在平均值的基础上根据 3σ 原则（σ ≈ 一般最多不超过的人数偏差 / 3）；</p>
-                <p>根据自己的意愿填写<b>课程权重</b>来加权，建议自我归一化，不归一也无伤大雅；</p>
-                <p>优化函数自行选择。</p>
+                <p><b>进阶使用</b>：可让系统把中心预测展开为正态或均匀分布，也可开放全局参数；若已有树洞或历史信息，则进入“手动优化预设”逐课填写。</p>
+                <p>选择概率均值或概率积作为目标；若课程重要程度不同，再打开<b>统一加权</b>。竞争者质数投点假设与自己的质数仪式均为独立的全局开关。</p>
               </div>
             </section>
             <section className="advice-sec">
@@ -515,8 +598,8 @@ export default function Home() {
               <div>
                 <p className="model-kicker">On the prime-point model</p>
                 <h3>关于质数模型</h3>
-                <p>假设除自己以外的人中，有一部分属于质数投点法玄学者，也可能有 0 点摆烂汉或 all in 赌王。开启<b>竞争者质数化假设比例</b>后，网页会先依照所选基础分布预测每名竞争者的投点，再让其中预测占比为 <MathInline>{"\\rho_i"}</MathInline> 的人将结果就近约化到质数；若与上下两个可选点等距，则各取 50%。</p>
-                <p>这只是对竞争者行为的附加假设，不会限制你自己的投点，也不表示质数本身具有额外的中签加成。具体原理与数学建模参见文末第八章。</p>
+                <p>假设除自己以外的人中，有一部分属于质数投点法玄学者，也可能有 0 点摆烂汉或 all in 赌王。开启<b>竞争者质数投点假设</b>后，网页会先依照所选基础分布预测每名竞争者的投点，再让其中预测占比为 <MathInline>{"\\rho"}</MathInline> 的人将结果就近约化到质数；若与上下两个可选点等距，则各取 50%。</p>
+                <p>这不会赋予质数额外的中签加成。若另行开启<b>质数仪式</b>，DP 才会把你自己的每门投点严格限制为 2—97 的正质数，并允许预算留余。具体原理与数学建模参见文末第八章。</p>
               </div>
             </section>
           </aside>
@@ -530,10 +613,10 @@ export default function Home() {
         <Reveal delay={90}>
           <div className="control-panel panel" onPointerMove={panelMove}>
             <div className="objective-block">
-              <div className="control-title"><ScrollText size={18} /><span>选择所求</span></div>
+              <div className="control-title"><ScrollText size={18} /><span>优化目标</span></div>
               <div className="objective-grid">
-                {(Object.keys(objectiveLabels) as Objective[]).map((key) => (
-                  <button key={key} type="button" className={objective === key ? 'objective active' : 'objective'} onClick={(event) => { spawnRipple(event); setObjective(key); }}>
+                {(Object.keys(objectiveLabels) as ObjectiveKind[]).map((key) => (
+                  <button key={key} type="button" className={objectiveKind === key ? 'objective active' : 'objective'} onClick={(event) => { spawnRipple(event); setObjectiveKind(key); }}>
                     <strong>{objectiveLabels[key].title}</strong>
                     <small>{objectiveLabels[key].note}</small>
                   </button>
@@ -541,9 +624,75 @@ export default function Home() {
               </div>
             </div>
             <div className="global-fields">
-              <Field label="点数预算" value={budget} min={0} max={999} onChange={setBudget} />
+              <Field label="点数预算" value={budget} min={0} max={99} onChange={(value) => setBudget(Math.min(99, Math.max(0, Math.round(value))))} />
               <Field label="模拟次数" value={samples} min={100} max={200000} step={1000} onChange={setSamples} />
               <Field label="随机种子" value={seed} min={0} step={1} onChange={setSeed} />
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal delay={130}>
+          <div className="prediction-panel panel" onPointerMove={panelMove}>
+            <div className="control-title"><Gauge size={18} /><span>竞争者投点假设</span></div>
+            <div className="prediction-mode-grid">
+              {(Object.keys(predictionModeLabels) as PredictionMode[]).map((mode) => (
+                <button key={mode} type="button" className={predictionMode === mode ? 'prediction-mode active' : 'prediction-mode'} onClick={(event) => { spawnRipple(event); setPredictionMode(mode); }}>
+                  <strong>{predictionModeLabels[mode].title}</strong>
+                  <small>{predictionModeLabels[mode].note}</small>
+                </button>
+              ))}
+            </div>
+
+            {predictionMode !== 'manual-preset' && (
+              <div className="prediction-config">
+                <label className="field distribution-select">
+                  <span>拥挤度先验</span>
+                  <select value={priorFamily} onChange={(event) => setPriorFamily(event.target.value as PriorFamily)}>
+                    {(Object.keys(priorLabels) as PriorFamily[]).map((family) => <option key={family} value={family}>{priorLabels[family]}</option>)}
+                  </select>
+                  <ChevronDown size={15} />
+                </label>
+                {predictionMode !== 'adaptive' && (
+                  <label className="field distribution-select">
+                    <span>群体分布形态</span>
+                    <select value={adaptiveShape} onChange={(event) => setAdaptiveShape(event.target.value as AdaptiveShape)}>
+                      {(Object.keys(adaptiveShapeLabels) as AdaptiveShape[]).map((shape) => <option key={shape} value={shape}>{adaptiveShapeLabels[shape]}</option>)}
+                    </select>
+                    <ChevronDown size={15} />
+                  </label>
+                )}
+                {predictionMode === 'adaptive' && <p className="prediction-explain">根据每门课的相对超额自动生成同质平均投点；课程卡只需填写限数与已选数。</p>}
+                {predictionMode === 'advanced' && <p className="prediction-explain">中心投点与离散程度均自动生成：低、高拥挤端更集中，中间状态分歧更大。</p>}
+                {predictionMode === 'manual-adaptive' && (
+                  <div className="adaptive-parameter-grid">
+                    {priorFamily === 'cosine' && <Field label="半余弦饱和尺度 k" value={adaptiveParameters.cosineScale} min={0.01} step={0.05} onChange={(cosineScale) => setAdaptiveParameters((current) => ({ ...current, cosineScale }))} />}
+                    {priorFamily === 'hill' && <Field label="Hill 半响应尺度 k" value={adaptiveParameters.hillScale} min={0.01} step={0.05} onChange={(hillScale) => setAdaptiveParameters((current) => ({ ...current, hillScale }))} />}
+                    {priorFamily === 'hill' && <Field label="Hill 形状 γ" value={adaptiveParameters.hillGamma} min={1.01} step={0.1} onChange={(hillGamma) => setAdaptiveParameters((current) => ({ ...current, hillGamma }))} />}
+                    {adaptiveShape !== 'average' && <Field label="两端最小 σ" value={adaptiveParameters.sigmaMin} min={0} max={33} step={0.5} onChange={(sigmaMin) => setAdaptiveParameters((current) => ({ ...current, sigmaMin }))} />}
+                    {adaptiveShape !== 'average' && <Field label="中段最大 σ" value={adaptiveParameters.sigmaMax} min={0} max={33} step={0.5} onChange={(sigmaMax) => setAdaptiveParameters((current) => ({ ...current, sigmaMax }))} />}
+                  </div>
+                )}
+              </div>
+            )}
+            {predictionMode === 'manual-preset' && <p className="manual-preset-note">每张课程卡将显示现有的平均、正态、均匀与离散混合预设，可逐门独立填写。</p>}
+
+            <div className="global-toggle-grid">
+              <div className={weighted ? 'global-toggle active' : 'global-toggle'}>
+                <span className="global-toggle-mark">权</span>
+                <label htmlFor="weighted-objective"><strong>统一加权</strong><small>开启后显示每门课的权重意愿 v</small></label>
+                <Switch id="weighted-objective" checked={weighted} onCheckedChange={setWeighted} aria-label="启用课程权重" />
+              </div>
+              <div className={competitorPrime ? 'global-toggle active' : 'global-toggle'}>
+                <span className="global-toggle-mark">质</span>
+                <label htmlFor="competitor-prime"><strong>竞争者质数投点假设</strong><small>将指定比例的竞争者投点就近质数化</small></label>
+                {competitorPrime && <PercentField label="信徒预测占比" value={primeShare} onChange={setPrimeShare} />}
+                <Switch id="competitor-prime" checked={competitorPrime} onCheckedChange={setCompetitorPrime} aria-label="启用竞争者质数投点假设" />
+              </div>
+              <div className={primeRitual ? 'global-toggle active' : 'global-toggle'}>
+                <span className="global-toggle-mark">仪</span>
+                <label htmlFor="prime-ritual"><strong>质数仪式</strong><small>自己的每门投点只能取 2—97 的质数，可留余点</small></label>
+                <Switch id="prime-ritual" checked={primeRitual} onCheckedChange={setPrimeRitual} aria-label="启用自身质数投点仪式" />
+              </div>
             </div>
           </div>
         </Reveal>
@@ -558,29 +707,19 @@ export default function Home() {
                     <input aria-label={`第${index + 1}门课程名称`} className="course-name" value={course.name} onChange={(event) => updateCourse(course.id, { name: event.target.value })} />
                   </div>
                   <div className="course-head-fields">
-                    <label className="field distribution-select"><span>竞争者投点假设</span><select value={course.distribution.type} onChange={(event) => changeDistribution(course.id, event.target.value as Distribution['type'])}>{(Object.keys(distributionLabels) as Distribution['type'][]).map((type) => <option key={type} value={type}>{distributionLabels[type]}</option>)}</select><ChevronDown size={15} /></label>
+                    {predictionMode === 'manual-preset' && <label className="field distribution-select"><span>竞争者投点假设</span><select value={course.distribution.type} onChange={(event) => changeDistribution(course.id, event.target.value as Distribution['type'])}>{(Object.keys(distributionLabels) as Distribution['type'][]).map((type) => <option key={type} value={type}>{distributionLabels[type]}</option>)}</select><ChevronDown size={15} /></label>}
                     {usesCourseWeights && <Field label="课程权重意愿 v" value={course.value} min={0.1} step={0.1} onChange={(value) => updateCourse(course.id, { value })} />}
                   </div>
                   {courses.length > 1 && <button aria-label={`删除${course.name}`} className="icon-button" type="button" onClick={() => setCourses((current) => current.filter((item) => item.id !== course.id))}><Trash2 size={15} /></button>}
                 </header>
-                <div className="course-fields" data-type={course.distribution.type}>
+                <div className="course-fields" data-type={predictionMode === 'manual-preset' ? course.distribution.type : 'adaptive'}>
                   <Field label="限数 a" value={course.capacity} onChange={(capacity) => updateCourse(course.id, { capacity })} />
                   <Field label="已选数 b" value={course.competitors} hint="不含本人" onChange={(competitors) => updateCourse(course.id, { competitors })} />
-                  <DistributionFields distribution={course.distribution} onChange={(distribution) => updateCourse(course.id, { distribution })} />
+                  {predictionMode === 'manual-preset'
+                    ? <DistributionFields distribution={course.distribution} onChange={(distribution) => updateCourse(course.id, { distribution })} />
+                    : <AdaptiveForecast course={course} distribution={effectiveCourses[index].distribution} family={priorFamily} />}
                 </div>
-                <div className={course.primeOnly ? 'prime-option active' : 'prime-option'}>
-                  <div className="prime-mark" aria-hidden="true">质</div>
-                  <label className="prime-copy" htmlFor={`prime-${course.id}`}>
-                    <strong>竞争者质数化假设比例</strong>
-                  </label>
-                  {course.primeOnly && (
-                    <div className="prime-share-field">
-                      <PercentField label="质数投点信徒的预测占比" value={course.primeShare ?? 1} onChange={(primeShare) => updateCourse(course.id, { primeShare })} />
-                    </div>
-                  )}
-                  <Switch id={`prime-${course.id}`} className="prime-switch" checked={Boolean(course.primeOnly)} onCheckedChange={(checked) => updateCourse(course.id, checked ? { primeOnly: true, primeShare: course.primeShare ?? 1 } : { primeOnly: false })} aria-label={`${course.name}启用质数化竞争者投点比例`} />
-                </div>
-                {course.distribution.type === 'mixture' && (
+                {predictionMode === 'manual-preset' && course.distribution.type === 'mixture' && (
                   <div className="course-dist">
                     <DistributionMixtureFields distribution={course.distribution} onChange={(distribution) => updateCourse(course.id, { distribution })} />
                   </div>
@@ -686,10 +825,12 @@ export default function Home() {
               <div>
                 <p className="model-kicker">Choose the objective</p>
                 <h3>什么叫“整体最好”？</h3>
-                <p>“整体最好”并没有唯一含义。如果只想尽量多中几门，应最大化各课中签概率之和；若课程的重要程度不同，可以再乘上权重意愿 <MathInline>{"v_i"}</MathInline>。如果我们贪婪地要求全中所有门课，而不在乎其他指标，则可使用概率积，甚至加权概率积。</p>
-                <MathBlock>{"\\Phi(q_1,\\ldots,q_\\ell)=\\begin{cases}\\displaystyle\\sum_{i=1}^{\\ell}P_i(q_i),&\\text{概率和},\\\\\\displaystyle\\sum_{i=1}^{\\ell}v_iP_i(q_i),&\\text{加权概率和},\\\\\\displaystyle\\prod_{i=1}^{\\ell}P_i(q_i),&\\text{概率积},\\\\\\displaystyle\\prod_{i=1}^{\\ell}P_i(q_i)^{v_i/\\sum_jv_j},&\\text{加权概率积}.\\end{cases}"}</MathBlock>
-                <p>乘积目标取对数后，仍可写成逐课相加的形式。加权积中的归一化指数只改变目标值的尺度，不改变最优投点，因此四种目标可以统一为：</p>
-                <MathBlock note="概率积只有在各课程抽签相互独立时，才等于“全部中签”的联合概率；否则应把它理解为风险均衡指标。">{"\\max_{\\sum_iq_i\\le B}\\sum_{i=1}^{\\ell}R_i(q_i),\\qquad R_i(q)=\\begin{cases}P_i(q),&\\text{概率和},\\\\v_iP_i(q),&\\text{加权概率和},\\\\\\ln P_i(q),&\\text{概率积},\\\\v_i\\ln P_i(q),&\\text{加权概率积}.\\end{cases}"}</MathBlock>
+                <p>“整体最好”并没有唯一含义。如果只想尽量多中几门，可使用概率均值；如果我们贪婪地要求全中所有门课，则使用概率积。均值与和只差常数 <MathInline>{"1/\\ell"}</MathInline>，所以最优投点完全相同。</p>
+                <MathBlock>{"\\bar P=\\frac1\\ell\\sum_{i=1}^{\\ell}P_i(q_i),\\qquad G=\\left(\\prod_{i=1}^{\\ell}P_i(q_i)\\right)^{1/\\ell}."}</MathBlock>
+                <p>若课程的重要程度不同，打开统一加权，并令 <MathInline>{"\\omega_i=v_i/\\sum_jv_j"}</MathInline>。此时得到加权算术均值和加权几何均值：</p>
+                <MathBlock>{"\\bar P_v=\\sum_{i=1}^{\\ell}\\omega_iP_i(q_i),\\qquad G_v=\\prod_{i=1}^{\\ell}P_i(q_i)^{\\omega_i}."}</MathBlock>
+                <p>乘积目标取对数后仍可逐课相加。令未加权时 <MathInline>{"\\omega_i=1"}</MathInline>、加权时 <MathInline>{"\\omega_i=v_i"}</MathInline>，两种目标便统一为：</p>
+                <MathBlock note="概率积只有在各课程抽签相互独立时，才等于“全部中签”的联合概率；否则应把它理解为风险均衡指标。">{"\\max_{\\sum_iq_i\\le B}\\sum_{i=1}^{\\ell}R_i(q_i),\\qquad R_i(q)=\\begin{cases}\\omega_iP_i(q),&\\text{概率均值},\\\\\\omega_i\\ln P_i(q),&\\text{概率积}.\\end{cases}"}</MathBlock>
                 <p className="model-conclusion">我们不妨假设概率分布已经求出，先来研究如何求解全局最优↓</p>
               </div>
             </section>
@@ -702,7 +843,8 @@ export default function Home() {
                 <p>经过一番思考，可以发现这里存在动态规划（DP）解法。</p>
                 <p>暂且假设每门课从零点到满点的概率曲线 <MathInline>{"P_i(0),\\ldots,P_i(B)"}</MathInline> 已经全部知道。此时问题只剩一个有限的整数资源分配。令 <MathInline>{"F(i,s)"}</MathInline> 表示前 <MathInline>{"i"}</MathInline> 门课程恰好使用 <MathInline>{"s"}</MathInline> 点时能够取得的最大总收益。</p>
                 <MathBlock>{"F(0,0)=0,\\qquad F(0,s)=-\\infty\\quad(s>0)."}</MathBlock>
-                <MathBlock>{"F(i,s)=\\max_{0\\le q\\le s}\\left\\{F(i-1,s-q)+R_i(q)\\right\\}."}</MathBlock>
+                <MathBlock>{"F(i,s)=\\max_{q\\in\\mathcal Q,\\ q\\le s}\\left\\{F(i-1,s-q)+R_i(q)\\right\\}."}</MathBlock>
+                <p>通常 <MathInline>{"\\mathcal Q=\\{0,1,\\ldots,B\\}"}</MathInline>。若开启质数仪式，则改为 <MathInline>{"\\mathcal Q=\\{2,3,5,\\ldots,97\\}"}</MathInline>；DP 会在该集合内重新求最优，并允许最终总用点数小于预算。</p>
                 <MathBlock>{"\\Phi^\\star=\\max_{0\\le s\\le B}F(\\ell,s)."}</MathBlock>
                 <p>递推时枚举第 <MathInline>{"i"}</MathInline> 门课的全部合法投点 <MathInline>{"q"}</MathInline>，把余下的 <MathInline>{"s-q"}</MathInline> 点交给前面的课程；最后记录每一步取到最大值的选择，便可回溯得到 <MathInline>{"(q_1^\\star,\\ldots,q_\\ell^\\star)"}</MathInline>。因此，相对于给定的概率曲线，这不是局部试探，而是全局整数最优。</p>
                 <p className="model-conclusion">至此，我们发现，只要求出概率分布，严格最优解唾手可得。<br />为此，让我们先考虑一个任意投点分布下的中签概率是否可求↓</p>
@@ -735,6 +877,21 @@ export default function Home() {
                 <p className="model-kicker">Model the competitors</p>
                 <h3>估计竞争者投点分布</h3>
                 <p>分布 <MathInline>{"D_i"}</MathInline> 不是抽签规则，而是我们对竞争者行为作出的假设。一般认为，以下几种模型足以覆盖常见使用情形；它们共享同一套抽签机制，只在“别人可能投多少点”这一步不同。</p>
+                <div className="sim-step sim-step-key">
+                  <div className="sim-step-head"><span className="sim-step-tag">自动</span><h4>从拥挤度生成先验中心</h4><em>默认无需手猜平均点数</em></div>
+                  <p>先把课程规模约掉，只保留相对超额：</p>
+                  <MathBlock>{"x_i=\\max\\left(0,\\frac{b_i}{a_i}-1\\right)."}</MathBlock>
+                  <p>半余弦先验在 <MathInline>{"x_i=0"}</MathInline> 与饱和点之间平滑上升；Hill 先验则用 <MathInline>{"k"}</MathInline> 控制半响应位置、用 <MathInline>{"\\gamma"}</MathInline> 控制陡峭程度：</p>
+                  <MathBlock>{"\\mu_i^{\\mathrm{cos}}=99\\frac{1-\\cos\\left(\\pi\\min(x_i/k,1)\\right)}2."}</MathBlock>
+                  <MathBlock>{"\\mu_i^{\\mathrm{Hill}}=99\\frac{x_i^\\gamma}{x_i^\\gamma+k^\\gamma}."}</MathBlock>
+                  <p>树洞先辈公式作为第三个历史经验先验保留；三者得到的都只是竞争者投点中心 <MathInline>{"\\mu_i"}</MathInline>，而非由抽签规则推出的真值。</p>
+                </div>
+                <div className="sim-step">
+                  <div className="sim-step-head"><span className="sim-step-tag">进阶</span><h4>从中心展开为群体分布</h4><em>中间状态分歧最大</em></div>
+                  <p>平均模式直接令所有竞争者投 <MathInline>{"\\mu_i"}</MathInline> 点。正态与均匀模式还需要离散尺度；半余弦使用归一化导数 <MathInline>{"h_i=\\sin(\\pi\\min(x_i/k,1))"}</MathInline>，Hill 使用其导数除以导数最大值，树洞先辈公式则使用 <MathInline>{"h_i=4m_i(1-m_i),\\ m_i=\\mu_i/99"}</MathInline>。</p>
+                  <MathBlock>{"\\sigma_i=\\sigma_{\\min}+(\\sigma_{\\max}-\\sigma_{\\min})h_i."}</MathBlock>
+                  <p>截断正态使用 <MathInline>{"N(\\mu_i,\\sigma_i^2)"}</MathInline>；均匀分布则取半宽 <MathInline>{"\\sqrt3\\sigma_i"}</MathInline>，从而在未截断时与正态模式拥有相同方差。</p>
+                </div>
                 <MathBlock>{"Q_{ij}\\sim D_i=\\begin{cases}t_i,&\\text{平均假设},\\\\\\operatorname{UnifInteger}(L_i,H_i),&\\text{整数均匀假设},\\\\\\operatorname{Round}(Z_{ij}),\\;Z_{ij}\\sim N(\\mu_i,(y_i/3)^2)\\mid 0\\le Z_{ij}\\le99,&\\text{截断正态假设},\\\\\\displaystyle\\sum_{h=1}^{H}p_{ih}\\,\\delta_{c_{ih}},\\;\\sum_hp_{ih}=1,&\\text{离散混合假设}.\\end{cases}"}</MathBlock>
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">基线</span><h4>平均假设</h4><em>所有人固定投 tᵢ 点</em></div>
@@ -787,7 +944,7 @@ export default function Home() {
                 <div className="sim-step-head"><span className="sim-step-tag">操作范式</span><h4>从输入到结果</h4><em>照此使用</em></div>
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">输入</span><h4>写下局势与偏好</h4><em>课程参数</em></div>
-                  <p>输入每门课程的 <MathInline>{"a_i,b_i,v_i"}</MathInline>、竞争者分布 <MathInline>{"D_i"}</MathInline>、总预算 <MathInline>{"B"}</MathInline>、模拟次数与随机种子，并选择概率和、加权概率和、概率积或加权概率积。</p>
+                  <p>输入每门课程的 <MathInline>{"a_i,b_i"}</MathInline>，选择自动预测或手动分布 <MathInline>{"D_i"}</MathInline>，设置总预算 <MathInline>{"B"}</MathInline>、模拟次数与随机种子，再选择概率均值或概率积；开启统一加权时再输入 <MathInline>{"v_i"}</MathInline>。</p>
                 </div>
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">概率</span><h4>逐课生成完整曲线</h4><em>解析或模拟</em></div>
@@ -801,8 +958,8 @@ export default function Home() {
                 <p>至此，理论的全流程如下：</p>
                 <div className="sim-step-head"><span className="sim-step-tag">理论综合</span><h4>把前文正着写一遍</h4><em>从假设到最优解</em></div>
                 <div className="sim-step sim-step-key">
-                  <p>第一步，实况与经验假设生成竞争者的基础投点；若启用质数化比例，则以 <MathInline>{"\\rho_i"}</MathInline> 的概率将每名竞争者就近映射到允许集合，再将投点加一成为票数：</p>
-                  <MathBlock>{"X_{ij}^{(r)}\\sim D_i,\\qquad Z_{ij}^{(r)}\\sim\\operatorname{Bernoulli}(\\rho_i)."}</MathBlock>
+                  <p>第一步，实况与经验假设生成竞争者的基础投点；若启用全局质数投点假设，则以 <MathInline>{"\\rho"}</MathInline> 的概率将每名竞争者就近映射到允许集合，再将投点加一成为票数：</p>
+                  <MathBlock>{"X_{ij}^{(r)}\\sim D_i,\\qquad Z_{ij}^{(r)}\\sim\\operatorname{Bernoulli}(\\rho)."}</MathBlock>
                   <MathBlock>{"Q_{ij}^{(r)}=\\begin{cases}X_{ij}^{(r)},&Z_{ij}^{(r)}=0,\\\\R_{\\mathcal A}(X_{ij}^{(r)}),&Z_{ij}^{(r)}=1,\\end{cases}\\qquad W_{ij}^{(r)}=Q_{ij}^{(r)}+1."}</MathBlock>
 
                   <p>第二步，若竞争者的最终投点是确定同质的，则直接得到无模拟误差的概率曲线：</p>
@@ -817,11 +974,11 @@ export default function Home() {
                   <p>第四步，复用每轮门槛，同时估计从零点到预算上限的整条概率曲线：</p>
                   <MathBlock>{"\\widehat P_i(q)=\\frac1N\\sum_{r=1}^{N}\\left[1-e^{-(q+1)S_i^{(r)}}\\right],\\qquad q=0,\\ldots,B."}</MathBlock>
 
-                  <p>第五步，把每门课的中签概率按所选目标变成单课收益：</p>
-                  <MathBlock>{"R_i(q)=\\begin{cases}P_i(q),&\\text{概率和},\\\\v_iP_i(q),&\\text{加权概率和},\\\\\\ln P_i(q),&\\text{概率积},\\\\v_i\\ln P_i(q),&\\text{加权概率积}.\\end{cases}"}</MathBlock>
+                  <p>第五步，把每门课的中签概率按所选目标变成单课收益；统一加权关闭时 <MathInline>{"\\omega_i=1"}</MathInline>，开启时 <MathInline>{"\\omega_i=v_i"}</MathInline>：</p>
+                  <MathBlock>{"R_i(q)=\\begin{cases}\\omega_iP_i(q),&\\text{概率均值},\\\\\\omega_i\\ln P_i(q),&\\text{概率积}.\\end{cases}"}</MathBlock>
 
                   <p>第六步，将所有单课收益交给动态规划：</p>
-                  <MathBlock>{"F(i,s)=\\max_{0\\le q\\le s}\\left\\{F(i-1,s-q)+R_i(q)\\right\\}."}</MathBlock>
+                  <MathBlock>{"F(i,s)=\\max_{q\\in\\mathcal Q,\\ q\\le s}\\left\\{F(i-1,s-q)+R_i(q)\\right\\}."}</MathBlock>
 
                   <p>第七步，从最优总用点数回溯，取回完整投点方案：</p>
                   <MathBlock>{"s^\\star\\in\\arg\\max_{0\\le s\\le B}F(\\ell,s),\\qquad(q_1^\\star,\\ldots,q_\\ell^\\star)=\\operatorname{Backtrack}(s^\\star)."}</MathBlock>
@@ -838,12 +995,12 @@ export default function Home() {
                 <p className="model-kicker">A prime-point projection</p>
                 <h3>新思：质数约化建模</h3>
                 <p>从某种意义上来说，我们可以认为“质数投点法”是一种仪式，而实际没有任何作用。<br />但作为站在高处的人，我们是否可以为此如此建模，以最大化自身收益呢？</p>
-                <p>因此我们不另造一套抽签规则，而是在任一基础分布 <MathInline>{"D_i"}</MathInline> 与原有概率引擎之间，加入信徒占比 <MathInline>{"\\rho_i"}</MathInline> 和一道随机的“质数约化”映射。</p>
+                <p>因此我们不另造一套抽签规则，而是在任一基础分布 <MathInline>{"D_i"}</MathInline> 与原有概率引擎之间，加入全局信徒占比 <MathInline>{"\\rho"}</MathInline> 和一道随机的“质数约化”映射。</p>
 
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">（1）</span><h4>预测质数投点信徒占比</h4><em>允许只有部分人相信</em></div>
-                  <p>令 <MathInline>{"\\rho_i\\in[0,1]"}</MathInline> 表示课程 <MathInline>{"i"}</MathInline> 中质数投点信徒的预测占比。对每名竞争者独立抽取信徒标记 <MathInline>{"Z_{ij}"}</MathInline>；关闭开关等价于 <MathInline>{"\\rho_i=0"}</MathInline>，开启后的默认值为 <MathInline>{"\\rho_i=1"}</MathInline>。</p>
-                  <MathBlock>{"X_{ij}\\sim D_i,\\qquad Z_{ij}\\sim\\operatorname{Bernoulli}(\\rho_i)."}</MathBlock>
+                  <p>令 <MathInline>{"\\rho\\in[0,1]"}</MathInline> 表示全局采用质数投点法的预测占比。对每门课的每名竞争者独立抽取信徒标记 <MathInline>{"Z_{ij}"}</MathInline>；关闭开关等价于 <MathInline>{"\\rho=0"}</MathInline>，开启后的默认值为 <MathInline>{"\\rho=1"}</MathInline>。</p>
+                  <MathBlock>{"X_{ij}\\sim D_i,\\qquad Z_{ij}\\sim\\operatorname{Bernoulli}(\\rho)."}</MathBlock>
                   <p>其中 <MathInline>{"X_{ij}"}</MathInline> 是基础分布给出的潜在投点；<MathInline>{"Z_{ij}=1"}</MathInline> 表示此人采用质数投点法，<MathInline>{"Z_{ij}=0"}</MathInline> 则保持原投点。</p>
                 </div>
 
@@ -866,8 +1023,8 @@ export default function Home() {
                 <div className="sim-step sim-step-key">
                   <div className="sim-step-head"><span className="sim-step-tag">（4）</span><h4>得到部分质数化后的混合分布</h4><em>原分布与约化分布并存</em></div>
                   <p>网页中的基础投点最终都落在 0 到 99 的整数上。记真正参与抽签的投点概率质量为 <MathInline>{"\\pi_i(u)=\\Pr(Q_{ij}=u)"}</MathInline>，则非信徒贡献原分布，信徒贡献被约化后重新汇聚的概率质量：</p>
-                  <MathBlock>{"\\pi_i(u)=(1-\\rho_i)\\Pr(X_{ij}=u)+\\rho_i\\sum_{x=0}^{99}K_{\\mathcal A}(u\\mid x)\\Pr(X_{ij}=x)."}</MathBlock>
-                  <p><MathInline>{"\\rho_i=0"}</MathInline> 时，模型退回原始基础分布；<MathInline>{"\\rho_i=1"}</MathInline> 时，才是全员质数化。介于二者之间时，普通投点与质数投点会同时存在。</p>
+                  <MathBlock>{"\\pi_i(u)=(1-\\rho)\\Pr(X_{ij}=u)+\\rho\\sum_{x=0}^{99}K_{\\mathcal A}(u\\mid x)\\Pr(X_{ij}=x)."}</MathBlock>
+                  <p><MathInline>{"\\rho=0"}</MathInline> 时，模型退回原始基础分布；<MathInline>{"\\rho=1"}</MathInline> 时，才是全员质数化。介于二者之间时，普通投点与质数投点会同时存在。</p>
                   <p>这一步解释了质数假设为何可能影响结果：它并非给质数增加“幸运加成”，而是改变竞争者票数的完整分布；而排序、去重与中签门槛通常不只由平均票数决定。</p>
                 </div>
 
@@ -884,13 +1041,13 @@ export default function Home() {
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">（6）</span><h4>平均假设下的解析特例</h4><em>何时仍能使用闭式解</em></div>
                   <p>若基础分布退化在单点 <MathInline>{"t_i"}</MathInline>，且最近允许点唯一为 <MathInline>{"p_i"}</MathInline>，部分占比模型会成为两个点质量的混合：</p>
-                  <MathBlock>{"D_i=\\delta_{t_i},\\quad M_{\\mathcal A}(t_i)=\\{p_i\\}\\quad\\Longrightarrow\\quad \\pi_i=(1-\\rho_i)\\delta_{t_i}+\\rho_i\\delta_{p_i}."}</MathBlock>
-                  <p>只有当 <MathInline>{"\\rho_i=0"}</MathInline>、<MathInline>{"\\rho_i=1"}</MathInline>，或 <MathInline>{"p_i=t_i"}</MathInline> 时，所有竞争者的最终投点仍然确定同质，可以继续使用第六章的闭式解；其余部分占比需要蒙特卡洛。</p>
+                  <MathBlock>{"D_i=\\delta_{t_i},\\quad M_{\\mathcal A}(t_i)=\\{p_i\\}\\quad\\Longrightarrow\\quad \\pi_i=(1-\\rho)\\delta_{t_i}+\\rho\\delta_{p_i}."}</MathBlock>
+                  <p>只有当 <MathInline>{"\\rho=0"}</MathInline>、<MathInline>{"\\rho=1"}</MathInline>，或 <MathInline>{"p_i=t_i"}</MathInline> 时，所有竞争者的最终投点仍然确定同质，可以继续使用第六章的闭式解；其余部分占比需要蒙特卡洛。</p>
                   <p>若 <MathInline>{"t_i"}</MathInline> 恰位于两个允许点 <MathInline>{"p_-"}</MathInline> 与 <MathInline>{"p_+"}</MathInline> 的中点，则信徒内部还会各半分流：</p>
-                  <MathBlock>{"\\pi_i=(1-\\rho_i)\\delta_{t_i}+\\tfrac{\\rho_i}{2}\\delta_{p_-}+\\tfrac{\\rho_i}{2}\\delta_{p_+}."}</MathBlock>
+                  <MathBlock>{"\\pi_i=(1-\\rho)\\delta_{t_i}+\\tfrac{\\rho}{2}\\delta_{p_-}+\\tfrac{\\rho}{2}\\delta_{p_+}."}</MathBlock>
                 </div>
 
-                <p className="model-conclusion">于是，所谓“质数模型”被准确地放在了它应在的位置：<MathInline>{"\\rho_i"}</MathInline> 描述有多少竞争者相信它，约化映射描述信徒如何投；它不是抽签系统对质数的偏爱，也不约束你自己的候选点数。</p>
+                <p className="model-conclusion">于是，所谓“质数模型”被准确地放在了它应在的位置：<MathInline>{"\\rho"}</MathInline> 描述有多少竞争者相信它，约化映射描述信徒如何投；它不是抽签系统对质数的偏爱。若你自己也想遵循仪式，则由独立的质数仪式开关把 DP 候选集合限制为正质数。</p>
               </div>
             </section>
           </article>
