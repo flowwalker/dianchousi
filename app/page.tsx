@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Bird, BookOpen, ChevronDown, ChevronUp, Flame, Gauge, House, Mountain, Plus, ScrollText, Sparkles, Trash2, Zap } from 'lucide-react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import {
   DEFAULT_ADAPTIVE_PARAMETERS,
@@ -394,7 +395,7 @@ export default function Home() {
   const [priorFamily, setPriorFamily] = useState<PriorFamily>('cosine');
   const [adaptiveShape, setAdaptiveShape] = useState<AdaptiveShape>('average');
   const [adaptiveParameters, setAdaptiveParameters] = useState<AdaptiveParameters>({ ...DEFAULT_ADAPTIVE_PARAMETERS });
-  const [competitorPrime, setCompetitorPrime] = useState(false);
+  const [competitorPrime, setCompetitorPrime] = useState(true);
   const [primeShare, setPrimeShare] = useState(1);
   const [primeRitual, setPrimeRitual] = useState(false);
   const [budget, setBudget] = useState(99);
@@ -610,29 +611,47 @@ export default function Home() {
         </Reveal>
 
         <Reveal delay={90}>
-          <div className="control-panel panel" onPointerMove={panelMove}>
-            <div className="objective-block">
-              <div className="control-title"><ScrollText size={18} /><span>优化目标</span></div>
-              <div className="objective-grid">
-                {(Object.keys(objectiveLabels) as ObjectiveKind[]).map((key) => (
-                  <button key={key} type="button" className={objectiveKind === key ? 'objective active' : 'objective'} onClick={(event) => { spawnRipple(event); setObjectiveKind(key); }}>
-                    <strong>{objectiveLabels[key].title}</strong>
-                    <small>{objectiveLabels[key].note}</small>
-                  </button>
-                ))}
-              </div>
+          <Collapsible>
+            <div className="control-panel panel fold-panel" onPointerMove={panelMove}>
+              <CollapsibleTrigger className="fold-panel-trigger">
+                <div className="control-title"><ScrollText size={18} /><span>优化目标</span></div>
+                <span className="fold-panel-summary">{objectiveLabels[objectiveKind].title} · {weighted ? '已加权' : '等权'} · 预算 {budget}</span>
+                <ChevronDown className="fold-chevron" size={18} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="fold-panel-content">
+                <div className="control-panel-content">
+                  <div className="objective-block">
+                    <div className="objective-grid">
+                      {(Object.keys(objectiveLabels) as ObjectiveKind[]).map((key) => (
+                        <button key={key} type="button" className={objectiveKind === key ? 'objective active' : 'objective'} onClick={(event) => { spawnRipple(event); setObjectiveKind(key); }}>
+                          <strong>{objectiveLabels[key].title}</strong>
+                          <small>{objectiveLabels[key].note}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="global-fields">
+                    <Field label="点数预算" value={budget} min={0} max={99} onChange={(value) => setBudget(Math.min(99, Math.max(0, Math.round(value))))} />
+                    <Field label="模拟次数" value={samples} min={100} max={200000} step={1000} onChange={setSamples} />
+                    <Field label="随机种子" value={seed} min={0} step={1} onChange={setSeed} />
+                  </div>
+                </div>
+              </CollapsibleContent>
+              <span className="fold-glint" aria-hidden="true" />
             </div>
-            <div className="global-fields">
-              <Field label="点数预算" value={budget} min={0} max={99} onChange={(value) => setBudget(Math.min(99, Math.max(0, Math.round(value))))} />
-              <Field label="模拟次数" value={samples} min={100} max={200000} step={1000} onChange={setSamples} />
-              <Field label="随机种子" value={seed} min={0} step={1} onChange={setSeed} />
-            </div>
-          </div>
+          </Collapsible>
         </Reveal>
 
         <Reveal delay={130}>
-          <div className="prediction-panel panel" onPointerMove={panelMove}>
-            <div className="control-title"><Gauge size={18} /><span>竞争者投点假设</span></div>
+          <Collapsible>
+          <div className="prediction-panel panel fold-panel" onPointerMove={panelMove}>
+            <CollapsibleTrigger className="fold-panel-trigger">
+              <div className="control-title"><Gauge size={18} /><span>竞争者投点假设</span></div>
+              <span className="fold-panel-summary">{predictionModeLabels[predictionMode].title} · {predictionMode === 'manual-preset' ? '逐课分布' : priorLabels[priorFamily]} · {competitorPrime ? `质数 ${Math.round(primeShare * 100)}%` : '质数关闭'}</span>
+              <ChevronDown className="fold-chevron" size={18} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="fold-panel-content">
+            <div className="prediction-panel-content">
             <div className="prediction-mode-grid">
               {(Object.keys(predictionModeLabels) as PredictionMode[]).map((mode) => (
                 <button key={mode} type="button" className={predictionMode === mode ? 'prediction-mode active' : 'prediction-mode'} onClick={(event) => { spawnRipple(event); setPredictionMode(mode); }}>
@@ -693,7 +712,11 @@ export default function Home() {
                 <Switch id="prime-ritual" checked={primeRitual} onCheckedChange={setPrimeRitual} aria-label="启用自身质数投点仪式" />
               </div>
             </div>
+            </div>
+            </CollapsibleContent>
+            <span className="fold-glint" aria-hidden="true" />
           </div>
+          </Collapsible>
         </Reveal>
 
         <div className="course-list">
