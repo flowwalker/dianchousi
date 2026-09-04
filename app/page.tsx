@@ -1100,47 +1100,67 @@ export default function Home() {
               <span className="chapter">09</span>
               <div>
                 <p className="model-kicker">Standing on the shoulders of giants</p>
-                <h3>站在巨人的肩膀上</h3>
-                <p>这套模型并不是凭空出现的。前辈工具已经把“拥挤度、课程价值与九十九点分配”连成了一条可用的经验路线；我做的事情，是沿着这条路线继续追问：如果把抽签机制本身写清楚，能不能把经验判断拆成可替换的概率模型，再把分配问题交给严格的整数优化？</p>
+                <h3>扩充：站在巨人的肩膀上</h3>
+                <p>事实上，私以为笔者自己的建模已经足以较好地估计赌场的运作；然而抱着学习和扩充的态度，笔者进一步深入考察了几代前者的投点机，并抽象出对自己的模型有扩充和发展作用的东西。</p>
 
                 <div className="shoulder-flow" aria-label="前辈路线与点筹司路线对照">
                   <div className="shoulder-lane">
                     <span className="shoulder-label">前辈路线</span>
                     <div className="shoulder-track">
-                      <span>限数 / 已选<br />快乐值</span><b>→</b><span>经验公式<br />估计概率</span><b>→</b><span>爬山或解析调点</span>
+                      <span>限数 / 已选<br />（+ 权重）</span><b>→</b><span>经验公式反估他人<br /><b>平均投点</b><br />或手填（初代）</span><b>→</b><span>近似公式<br />计算概率</span><b>→</b><span>爬山 / 解析调点</span>
                     </div>
                   </div>
                   <div className="shoulder-lane shoulder-lane-current">
                     <span className="shoulder-label">点筹司扩充</span>
                     <div className="shoulder-track">
-                      <span>限数 / 已选<br />课程权重</span><b>→</b><span>先验中心 + 分布<br />质数约化</span><b>→</b><span>概率曲线 + DP</span>
+                      <span>限数 / 已选（+ 权重）<br />+ 手估他人<b>投点分布</b></span><b>→</b><span>蒙特卡洛模拟<br />（指数竞赛算法）<br />计算概率</span><b>→</b><span>DP 计算<br />全局最优</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="sim-step">
-                  <div className="sim-step-head"><span className="sim-step-tag">前辈公式</span><h4>把拥挤度压成一个经验概率</h4><em>实用，但经验性强</em></div>
-                  <p>树洞系旧模型通常先用 <MathInline>{"m_i"}</MathInline> 表示第 <MathInline>{"i"}</MathInline> 门的预测平均投点，再用拥挤比例构造一个基准概率：</p>
-                  <MathBlock>{"p_i=\\left(\\frac{b_i-a_i}{b_i}\\right)^{33.5/m_i},\\qquad E_i=-v_i\\ln p_i."}</MathBlock>
-                  <p>随后把 <MathInline>{"E_i"}</MathInline> 与 <MathInline>{"p_i"}</MathInline> 代入归一化分配式，得到近似投点：</p>
-                  <MathBlock>{"x_i=\\frac{C-\\ln E_i}{\\ln p_i},\\qquad q_i\\approx\\frac{B+\\ell/2}{3}x_i-\\frac12."}</MathBlock>
-                  <p>这里的 <MathInline>{"C"}</MathInline> 是为满足整体预算而选取的归一化常数；不同页面会对平均投点、边界和调点步骤作不同的经验处理。它的优点是轻量、直观、容易落地，代价是竞争者分布、票池去重和不确定性都被压缩进少数经验参数。</p>
+                  <div className="sim-step-head"><span className="sim-step-tag">初代</span><h4>手填平均投点，再以连续近似分点</h4><em>经验性</em></div>
+                  <p>最早的 C 语言版本并不负责预测别人投多少，而是要求用户手填 <MathInline>{"m_i"}</MathInline>——第 <MathInline>{"i"}</MathInline> 门课竞争者的预计平均投点。它把大课程中的落选概率近似为：</p>
+                  <MathBlock>{"L_i(q)\\approx\\left(\\frac{b_i-a_i}{b_i}\\right)^{(q+0.5)/m_i},\\qquad P_i(q)\\approx1-L_i(q)."}</MathBlock>
+                  <p>若课程价值为 <MathInline>{"v_i"}</MathInline>，则它近似最大化 <MathInline>{"\\sum_i v_iP_i(q_i)"}</MathInline>，并以拉格朗日乘数让各课边际收益对齐：</p>
+                  <MathBlock>{"E_i=-v_i\\ln p_i,\\qquad x_i=\\frac{\\ln A-\\ln E_i}{\\ln p_i},\\qquad q_i\\approx\\frac{B+\\ell/2}{3}x_i-\\frac12."}</MathBlock>
+                  <p>其中 <MathInline>{"p_i=\\left((b_i-a_i)/b_i\\right)^{33.5/m_i}"}</MathInline> 是代码中代入的基准量，<MathInline>{"A"}</MathInline> 由总预算归一化确定。它简洁、轻量，也解释了为什么会出现负投点等连续近似的边界问题。</p>
+                </div>
+
+                <div className="sim-step">
+                  <div className="sim-step-head"><span className="sim-step-tag">树洞系</span><h4>从拥挤度自动猜平均投点</h4><em>历史经验先验</em></div>
+                  <p>wyjjmzx／谷雨同学版本把“平均投点”也自动化。记拥挤比 <MathInline>{"r_i=b_i/a_i"}</MathInline>，其经典经验曲线可写为：</p>
+                  <MathBlock>{"y_i=1+(r_i-1)^{1/8},\\qquad \\mu_i^{\\mathrm{classic}}\\approx0.92(-101y_i^2+392.6y_i-347.8)+0.08\\times99."}</MathBlock>
+                  <p>随后令你的票数约为普通竞争者的 <MathInline>{"x"}</MathInline> 倍，用更精确的同质近似计算中签概率：</p>
+                  <MathBlock>{"P_i(x)\\approx1-\\left(1-\\frac{a_i}{b_i+x}\\right)^{0.55x+0.5}\\left(\\frac{b_i}{b_i-a_i}\\right)^{0.5-0.45x}."}</MathBlock>
+                  <p>最后反复尝试 <MathInline>{"(q_i,q_j)\\mapsto(q_i-1,q_j+1)"}</MathInline>；只要加权概率和提高，就接受这次逐点转移，直到不能继续改善。这是“经验平均点 → 近似概率 → 爬山调点”的完整链条。</p>
+                </div>
+
+                <div className="sim-step">
+                  <div className="sim-step-head"><span className="sim-step-tag">Joat</span><h4>把猜对手改成多情景与代表人适应</h4><em>不错之思</em></div>
+                  <p>Joat917 高级版保留旧曲线，同时增加固定 <MathInline>{"\\mu_i=37"}</MathInline>、固定 <MathInline>{"\\mu_i=73"}</MathInline> 两种情景；更有意思的是适应模型：把目标课程与两门替代课程交给一个代表性竞争者，让他自己分配九十九点，目标课程所得投点便成为 <MathInline>{"\\mu_i"}</MathInline> 的估计。</p>
+                  <MathBlock>{"\\frac{b_i}{a_i}\\;\\longrightarrow\\;\\text{代表性竞争者三课分点}\\;\\longrightarrow\\;\\mu_i."}</MathBlock>
+                  <p>它常以概率积为目标，即 <MathInline>{"\\max\\sum_i v_i\\ln P_i(q_i)"}</MathInline>，仍通过逐点转移优化。Joat 的质数功能则主要是把自己的推荐结果尽量调整为质数，并没有进一步模拟竞争者相信质数投点的行为。</p>
                 </div>
 
                 <div className="sim-step sim-step-key">
-                  <div className="sim-step-head"><span className="sim-step-tag">此间新解</span><h4>把经验中心展开成概率曲线，再做全局分配</h4><em>层层补齐未知量</em></div>
-                  <p>点筹司保留同样的问题入口，却把中间步骤显式拆开：</p>
-                  <MathBlock>{"x_i=\\max\\left(0,\\frac{b_i}{a_i}-1\\right)\\;\\longrightarrow\\;\\mu_i=f(x_i)\\;\\longrightarrow\\;D_i\\;\\longrightarrow\\;P_i(0{:}B)."}</MathBlock>
-                  <p>其中 <MathInline>{"f"}</MathInline> 可以是半余弦、Hill 或树洞先辈公式先验；<MathInline>{"D_i"}</MathInline> 再决定采用平均、正态、均匀或离散混合的竞争者分布。得到概率曲线后，统一写成：</p>
+                  <div className="sim-step-head"><span className="sim-step-tag">点筹司</span><h4>完整分布、严格票池概率与全局 DP</h4><em>建模优雅</em></div>
+                  <p>点筹司把“平均投点”扩展为完整分布 <MathInline>{"Q_{ij}\\sim D_i"}</MathInline>。当只知道限数与已选数时，先以相对超额产生可切换的自适应中心：</p>
+                  <MathBlock>{"x_i=\\max\\left(0,\\frac{b_i}{a_i}-1\\right),\\qquad \\mu_i^{\\mathrm{cos}}=99\\frac{1-\\cos(\\pi\\min(x_i/k,1))}{2},\\qquad \\mu_i^{\\mathrm{Hill}}=99\\frac{x_i^\\gamma}{x_i^\\gamma+k^\\gamma}."}</MathBlock>
+                  <p>中心可进一步展开为平均、截断正态、均匀或离散混合分布；在同质平均模式下，直接用真实票池的连乘式；在任意随机分布下，令 <MathInline>{"W_{ij}=Q_{ij}+1"}</MathInline>，再以指数竞赛产生门槛：</p>
+                  <MathBlock>{"T_{ij}\\sim\\operatorname{Exp}(W_{ij}),\\qquad P_i(q)=\\mathbb E\\left[1-e^{-(q+1)S_i}\\right]."}</MathBlock>
+                  <p>这样一次模拟即可得到 <MathInline>{"P_i(0),\\ldots,P_i(B)"}</MathInline>。最后把所选目标写成单课收益，并用 DP 遍历全部合法整数分配：</p>
                   <MathBlock>{"R_i(q)=\\begin{cases}\\omega_iP_i(q),&\\text{概率和},\\\\\\omega_i\\ln P_i(q),&\\text{概率积},\\end{cases}\\qquad F(i,s)=\\max_{q\\le s}\\{F(i-1,s-q)+R_i(q)\\}."}</MathBlock>
-                  <p>因此，前辈路线中的“分配九十九点”被保留下来，但求解器从局部调点升级为有限状态上的动态规划；前辈经验公式也不再被丢弃，而是作为可切换的历史先验继续存在。</p>
+                  <p>这保留了前辈“由拥挤度帮助分配九十九点”的问题意识，但概率引擎扩展到任意分布；分配器则在给定概率曲线下严格取得全局整数最优。</p>
                 </div>
 
                 <div className="shoulder-notes">
-                  <div><strong>已经吸收</strong><span>拥挤度与课程价值的输入方式；树洞先辈公式先验；Joat 高级版提示的“竞争者投点不能只看一个固定平均值”。</span></div>
-                  <div><strong>暂未照搬</strong><span>Joat 的自适应对手模型目前参数较粗，且难以与本工具的分布、方差和质数占比统一，因此先保留为未来方向。</span></div>
-                  <div><strong>明确超出</strong><span>指数时间竞赛用于快速获得整条概率曲线；动态规划在给定曲线下保证整数全局最优，而不是依赖爬山过程的局部路径。</span></div>
+                  <div><strong>丰富扩充</strong><span>借鉴了拥挤度概念；自我开创性提出 cos 和 Hill 先验，当然树洞先辈公式先验也有待研究（据传先辈采用粗略树洞调研）。</span></div>
+                  <div><strong>明确贡献</strong><span>使用<b>指数时间竞赛 + 蒙特卡洛模拟</b>，用于快速获得<b>任意分布下</b>整条概率曲线；<b>动态规划</b>在给定曲线下保证整数全局最优，而不是依赖爬山过程的局部路径。</span></div>
+                  <div><strong>不错之思</strong><span>Joat 的自适应对手模型目前参数较粗，且难以与本工具的分布、方差和质数占比统一，但思想确实极佳，值得后续学习。</span></div>
                 </div>
+
+                <p className="model-conclusion">一句话总结：前辈的核心贡献是“猜平均点”和“简化分点”；点筹司的核心贡献是“准确算概率”和“严格全局优化”；而下一步真正值得研究的，是把二者连起来的拥挤度行为模型——自动从 <MathInline>{"(a_i,b_i)"}</MathInline> 生成合理的 <MathInline>{"D_i"}</MathInline>。</p>
 
                 <div className="source-box">
                   <p className="source-box-title">树洞先辈投点计算器</p>
