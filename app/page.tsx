@@ -549,7 +549,10 @@ export default function Home() {
                 <span>ADVICE & GUIDE · v1.1</span>
                 <span className="story-fold-lede">推演开始前的一席话：这个网站从何而来，以及如何把它用明白。</span>
               </span>
-              <span className="story-fold-cue" aria-hidden="true"><ChevronDown /><ChevronDown /><ChevronDown /></span>
+              <span className="story-fold-cue" aria-hidden="true">
+                <span className="fold-cue-arrows"><ChevronDown /><ChevronDown /><ChevronDown /></span>
+                <small><span>点击展开</span><span>点击收起</span></small>
+              </span>
             </CollapsibleTrigger>
             <CollapsibleContent className="story-fold-content">
             <div className="story-fold-inner">
@@ -625,7 +628,7 @@ export default function Home() {
               <CollapsibleTrigger className="fold-panel-trigger">
                 <div className="control-title"><ScrollText size={18} /><span>优化目标</span></div>
                 <span className="fold-panel-summary">{objectiveLabels[objectiveKind].title} · {weighted ? '已加权' : '等权'} · 预算 {budget}</span>
-                <span className="fold-cue" aria-hidden="true"><ChevronDown /><ChevronDown /><ChevronDown /></span>
+                <span className="fold-cue" aria-hidden="true"><span className="fold-cue-arrows"><ChevronDown /><ChevronDown /><ChevronDown /></span><small>点击展开</small></span>
                 <ChevronDown className="fold-chevron" size={18} />
               </CollapsibleTrigger>
               <CollapsibleContent className="fold-panel-content">
@@ -658,7 +661,7 @@ export default function Home() {
             <CollapsibleTrigger className="fold-panel-trigger">
               <div className="control-title"><Gauge size={18} /><span>竞争者投点假设</span></div>
               <span className="fold-panel-summary">{predictionModeLabels[predictionMode].title} · {predictionMode === 'manual-preset' ? '逐课分布' : priorLabels[priorFamily]} · {competitorPrime ? `质数 ${Math.round(primeShare * 100)}%` : '质数关闭'}</span>
-              <span className="fold-cue" aria-hidden="true"><ChevronDown /><ChevronDown /><ChevronDown /></span>
+              <span className="fold-cue" aria-hidden="true"><span className="fold-cue-arrows"><ChevronDown /><ChevronDown /><ChevronDown /></span><small>点击展开</small></span>
               <ChevronDown className="fold-chevron" size={18} />
             </CollapsibleTrigger>
             <CollapsibleContent className="fold-panel-content">
@@ -824,7 +827,10 @@ export default function Home() {
                 <span>MATHEMATICAL MODEL · v2.0</span>
                 <span className="story-fold-lede">天下 PKUer 苦 P 大赌场久矣。为此特设此阵，以助沙漠尘客走出迷茫的沙漠……</span>
               </span>
-              <span className="story-fold-cue" aria-hidden="true"><ChevronDown /><ChevronDown /><ChevronDown /></span>
+              <span className="story-fold-cue" aria-hidden="true">
+                <span className="fold-cue-arrows"><ChevronDown /><ChevronDown /><ChevronDown /></span>
+                <small><span>点击展开</span><span>点击收起</span></small>
+              </span>
             </CollapsibleTrigger>
             <CollapsibleContent className="story-fold-content">
             <div className="story-fold-inner">
