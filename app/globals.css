@@ -232,7 +232,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .course-fields .field { max-width: 236px; }
 .course-fields[data-type="uniform"], .course-fields[data-type="normal"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .course-fields[data-type="mixture"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.prime-option { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(180px, 230px) auto; align-items: center; gap: 10px; padding: 10px 12px; color: var(--ink-soft); background: rgba(63, 92, 107, .045); border: 1px dashed rgba(63, 92, 107, .24); border-radius: 11px; transition: color .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.prime-option { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(160px, 190px) auto; align-items: center; gap: 10px; padding: 10px 12px; color: var(--ink-soft); background: rgba(63, 92, 107, .045); border: 1px dashed rgba(63, 92, 107, .24); border-radius: 11px; transition: color .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
 .prime-option:hover { border-color: rgba(194, 59, 34, .34); transform: translateY(-1px); }
 .prime-option.active { color: var(--ink); background: linear-gradient(105deg, rgba(194, 59, 34, .08), rgba(199, 154, 74, .08)); border-color: rgba(194, 59, 34, .4); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .48), 0 6px 14px rgba(143, 42, 21, .08); }
 .prime-mark { display: grid; place-items: center; width: 29px; height: 29px; color: #956414; background: #fff8e7; border: 1px solid rgba(199, 154, 74, .4); border-radius: 8px; font-family: "Kaiti SC", STKaiti, serif; font-size: 15px; font-weight: 900; transition: color .2s ease, background .2s ease, border-color .2s ease, transform .25s ease; }
@@ -243,6 +243,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .prime-share-field { grid-column: 3; min-width: 0; animation: prime-share-in .28s cubic-bezier(.2, .8, .2, 1) both; }
 .prime-share-field .field > span { color: var(--vermilion-deep); }
 .prime-share-field .field input { background: rgba(255, 254, 250, .9); border-color: rgba(194, 59, 34, .3); }
+.percent-field > .percent-control { display: flex; flex-direction: row; align-items: center; gap: 6px; color: var(--vermilion-deep); }
+.percent-control input { flex: 0 0 68px; width: 68px; }
+.percent-control b { font-size: 13px; font-weight: 900; }
 @keyframes prime-share-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
 .prime-switch[data-slot="switch"] { grid-column: 4; width: 34px; height: 19px; background: rgba(47, 46, 43, .22); cursor: pointer; }
 .prime-switch[data-slot="switch"][data-checked] { background: var(--vermilion); }

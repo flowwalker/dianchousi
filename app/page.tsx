@@ -217,6 +217,44 @@ function Field({ label, value, onChange, min = 0, max, step = 1, hint }: { label
   );
 }
 
+function PercentField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  const [draft, setDraft] = useState(() => String(Math.round(value * 10_000) / 100));
+
+  const commit = () => {
+    const parsed = Number(draft);
+    const bounded = Math.min(100, Math.max(0, Number.isFinite(parsed) ? parsed : 0));
+    const normalized = Math.round(bounded * 100) / 100;
+    setDraft(String(normalized));
+    onChange(normalized / 100);
+  };
+
+  return (
+    <label className="field percent-field">
+      <span>{label}</span>
+      <span className="percent-control">
+        <input
+          type="number"
+          aria-label={`${label}（百分比）`}
+          value={draft}
+          min={0}
+          max={100}
+          step={1}
+          inputMode="decimal"
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              commit();
+            }
+          }}
+        />
+        <b aria-hidden="true">%</b>
+      </span>
+    </label>
+  );
+}
+
 function ProbabilityChart({ values, selected }: { values: number[]; selected: number }) {
   const gradientId = useId();
   const [hoverQ, setHoverQ] = useState<number | null>(null);
@@ -305,6 +343,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [activeSection, setActiveSection] = useState('top');
   const resultsRef = useRef<HTMLElement>(null);
+  const usesCourseWeights = objective === 'weighted_sum' || objective === 'weighted_product';
 
   useEffect(() => {
     const onScroll = () => {
@@ -519,8 +558,8 @@ export default function Home() {
                     <input aria-label={`第${index + 1}门课程名称`} className="course-name" value={course.name} onChange={(event) => updateCourse(course.id, { name: event.target.value })} />
                   </div>
                   <div className="course-head-fields">
-                    <Field label="课程权重意愿 v" value={course.value} min={0.1} step={0.1} onChange={(value) => updateCourse(course.id, { value })} />
                     <label className="field distribution-select"><span>竞争者投点假设</span><select value={course.distribution.type} onChange={(event) => changeDistribution(course.id, event.target.value as Distribution['type'])}>{(Object.keys(distributionLabels) as Distribution['type'][]).map((type) => <option key={type} value={type}>{distributionLabels[type]}</option>)}</select><ChevronDown size={15} /></label>
+                    {usesCourseWeights && <Field label="课程权重意愿 v" value={course.value} min={0.1} step={0.1} onChange={(value) => updateCourse(course.id, { value })} />}
                   </div>
                   {courses.length > 1 && <button aria-label={`删除${course.name}`} className="icon-button" type="button" onClick={() => setCourses((current) => current.filter((item) => item.id !== course.id))}><Trash2 size={15} /></button>}
                 </header>
@@ -536,7 +575,7 @@ export default function Home() {
                   </label>
                   {course.primeOnly && (
                     <div className="prime-share-field">
-                      <Field label="质数投点信徒的预测占比" value={course.primeShare ?? 1} min={0} max={1} step={0.05} onChange={(primeShare) => updateCourse(course.id, { primeShare })} />
+                      <PercentField label="质数投点信徒的预测占比" value={course.primeShare ?? 1} onChange={(primeShare) => updateCourse(course.id, { primeShare })} />
                     </div>
                   )}
                   <Switch id={`prime-${course.id}`} className="prime-switch" checked={Boolean(course.primeOnly)} onCheckedChange={(checked) => updateCourse(course.id, checked ? { primeOnly: true, primeShare: course.primeShare ?? 1 } : { primeOnly: false })} aria-label={`${course.name}启用质数化竞争者投点比例`} />
