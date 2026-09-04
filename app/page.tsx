@@ -523,8 +523,8 @@ export default function Home() {
                 <div className={course.primeOnly ? 'prime-option active' : 'prime-option'}>
                   <div className="prime-mark" aria-hidden="true">质</div>
                   <label htmlFor={`prime-${course.id}`}>
-                    <strong>质数化竞争者投点</strong>
-                    <small>保留 0 与 99；其余就近取质数，等距时各 50%</small>
+                    <strong>竞争者质数化假设</strong>
+                    <small>假设除自己以外的所有人属于质数投点法玄学者，或者 0 点摆烂汉，或者 all in 赌王</small>
                   </label>
                   <Switch id={`prime-${course.id}`} className="prime-switch" checked={Boolean(course.primeOnly)} onCheckedChange={(checked) => updateCourse(course.id, { primeOnly: checked })} aria-label={`${course.name}启用质数化竞争者投点`} />
                 </div>
