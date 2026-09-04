@@ -28,7 +28,7 @@ type ObjectiveKind = 'mean' | 'product';
 type PredictionMode = 'adaptive' | 'advanced' | 'manual-adaptive' | 'manual-preset';
 
 const objectiveLabels: Record<ObjectiveKind, { title: string; note: string }> = {
-  mean: { title: '概率均值', note: '尽量多中几门' },
+  mean: { title: '概率和', note: '尽量多中几门' },
   product: { title: '概率积', note: '我要全中！' },
 };
 
@@ -570,7 +570,7 @@ export default function Home() {
                   </ul>
                 </div>
                 <p><b>进阶使用</b>：可让系统把中心预测展开为正态或均匀分布，也可开放全局参数；若已有树洞或历史信息，则进入“手动优化预设”逐课填写。</p>
-                <p>选择概率均值或概率积作为目标；若课程重要程度不同，再打开<b>统一加权</b>。竞争者质数投点假设与自己的质数仪式均为独立的全局开关。</p>
+                <p>选择概率和或概率积作为目标；若课程重要程度不同，再打开<b>统一加权</b>。竞争者质数投点假设与自己的质数仪式均为独立的全局开关。</p>
               </div>
             </section>
             <section className="advice-sec">
@@ -825,12 +825,12 @@ export default function Home() {
               <div>
                 <p className="model-kicker">Choose the objective</p>
                 <h3>什么叫“整体最好”？</h3>
-                <p>“整体最好”并没有唯一含义。如果只想尽量多中几门，可使用概率均值；如果我们贪婪地要求全中所有门课，则使用概率积。均值与和只差常数 <MathInline>{"1/\\ell"}</MathInline>，所以最优投点完全相同。</p>
-                <MathBlock>{"\\bar P=\\frac1\\ell\\sum_{i=1}^{\\ell}P_i(q_i),\\qquad G=\\left(\\prod_{i=1}^{\\ell}P_i(q_i)\\right)^{1/\\ell}."}</MathBlock>
-                <p>若课程的重要程度不同，打开统一加权，并令 <MathInline>{"\\omega_i=v_i/\\sum_jv_j"}</MathInline>。此时得到加权算术均值和加权几何均值：</p>
-                <MathBlock>{"\\bar P_v=\\sum_{i=1}^{\\ell}\\omega_iP_i(q_i),\\qquad G_v=\\prod_{i=1}^{\\ell}P_i(q_i)^{\\omega_i}."}</MathBlock>
+                <p>“整体最好”并没有唯一含义。如果只想尽量多中几门，可使用概率和；如果我们贪婪地要求全中所有门课，则使用概率积。</p>
+                <MathBlock>{"S=\\sum_{i=1}^{\\ell}P_i(q_i),\\qquad G=\\prod_{i=1}^{\\ell}P_i(q_i)."}</MathBlock>
+                <p>若课程的重要程度不同，打开统一加权。此时得到加权概率和与加权概率积：</p>
+                <MathBlock>{"S_v=\\sum_{i=1}^{\\ell}v_iP_i(q_i),\\qquad G_v=\\prod_{i=1}^{\\ell}P_i(q_i)^{v_i/\\sum_jv_j}."}</MathBlock>
                 <p>乘积目标取对数后仍可逐课相加。令未加权时 <MathInline>{"\\omega_i=1"}</MathInline>、加权时 <MathInline>{"\\omega_i=v_i"}</MathInline>，两种目标便统一为：</p>
-                <MathBlock note="概率积只有在各课程抽签相互独立时，才等于“全部中签”的联合概率；否则应把它理解为风险均衡指标。">{"\\max_{\\sum_iq_i\\le B}\\sum_{i=1}^{\\ell}R_i(q_i),\\qquad R_i(q)=\\begin{cases}\\omega_iP_i(q),&\\text{概率均值},\\\\\\omega_i\\ln P_i(q),&\\text{概率积}.\\end{cases}"}</MathBlock>
+                <MathBlock note="概率积只有在各课程抽签相互独立时，才等于“全部中签”的联合概率；否则应把它理解为风险均衡指标。">{"\\max_{\\sum_iq_i\\le B}\\sum_{i=1}^{\\ell}R_i(q_i),\\qquad R_i(q)=\\begin{cases}\\omega_iP_i(q),&\\text{概率和},\\\\\\omega_i\\ln P_i(q),&\\text{概率积}.\\end{cases}"}</MathBlock>
                 <p className="model-conclusion">我们不妨假设概率分布已经求出，先来研究如何求解全局最优↓</p>
               </div>
             </section>
@@ -944,7 +944,7 @@ export default function Home() {
                 <div className="sim-step-head"><span className="sim-step-tag">操作范式</span><h4>从输入到结果</h4><em>照此使用</em></div>
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">输入</span><h4>写下局势与偏好</h4><em>课程参数</em></div>
-                  <p>输入每门课程的 <MathInline>{"a_i,b_i"}</MathInline>，选择自动预测或手动分布 <MathInline>{"D_i"}</MathInline>，设置总预算 <MathInline>{"B"}</MathInline>、模拟次数与随机种子，再选择概率均值或概率积；开启统一加权时再输入 <MathInline>{"v_i"}</MathInline>。</p>
+                  <p>输入每门课程的 <MathInline>{"a_i,b_i"}</MathInline>，选择自动预测或手动分布 <MathInline>{"D_i"}</MathInline>，设置总预算 <MathInline>{"B"}</MathInline>、模拟次数与随机种子，再选择概率和或概率积；开启统一加权时再输入 <MathInline>{"v_i"}</MathInline>。</p>
                 </div>
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">概率</span><h4>逐课生成完整曲线</h4><em>解析或模拟</em></div>
@@ -975,7 +975,7 @@ export default function Home() {
                   <MathBlock>{"\\widehat P_i(q)=\\frac1N\\sum_{r=1}^{N}\\left[1-e^{-(q+1)S_i^{(r)}}\\right],\\qquad q=0,\\ldots,B."}</MathBlock>
 
                   <p>第五步，把每门课的中签概率按所选目标变成单课收益；统一加权关闭时 <MathInline>{"\\omega_i=1"}</MathInline>，开启时 <MathInline>{"\\omega_i=v_i"}</MathInline>：</p>
-                  <MathBlock>{"R_i(q)=\\begin{cases}\\omega_iP_i(q),&\\text{概率均值},\\\\\\omega_i\\ln P_i(q),&\\text{概率积}.\\end{cases}"}</MathBlock>
+                  <MathBlock>{"R_i(q)=\\begin{cases}\\omega_iP_i(q),&\\text{概率和},\\\\\\omega_i\\ln P_i(q),&\\text{概率积}.\\end{cases}"}</MathBlock>
 
                   <p>第六步，将所有单课收益交给动态规划：</p>
                   <MathBlock>{"F(i,s)=\\max_{q\\in\\mathcal Q,\\ q\\le s}\\left\\{F(i-1,s-q)+R_i(q)\\right\\}."}</MathBlock>
