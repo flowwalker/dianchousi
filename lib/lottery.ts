@@ -13,6 +13,7 @@ export interface CourseInput {
   competitors: number;
   value: number;
   distribution: Distribution;
+  primeOnly?: boolean;
 }
 
 export interface ProbabilityCurve {
@@ -61,7 +62,30 @@ function gaussian(rng: () => number) {
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
-function samplePoints(distribution: Distribution, rng: () => number) {
+export const PRIME_POINT_OPTIONS = [0, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 99] as const;
+
+export function primePointCandidates(points: number): number[] {
+  const bounded = Math.min(99, Math.max(0, points));
+  for (let index = 0; index < PRIME_POINT_OPTIONS.length; index += 1) {
+    const upper = PRIME_POINT_OPTIONS[index];
+    if (bounded === upper || (index === 0 && bounded < upper)) return [upper];
+    if (bounded < upper) {
+      const lower = PRIME_POINT_OPTIONS[index - 1];
+      const lowerDistance = bounded - lower;
+      const upperDistance = upper - bounded;
+      if (Math.abs(lowerDistance - upperDistance) < 1e-12) return [lower, upper];
+      return [lowerDistance < upperDistance ? lower : upper];
+    }
+  }
+  return [99];
+}
+
+export function applyPrimePointRule(points: number, rng: () => number): number {
+  const candidates = primePointCandidates(points);
+  return candidates.length === 1 ? candidates[0] : candidates[rng() < 0.5 ? 0 : 1];
+}
+
+function sampleBasePoints(distribution: Distribution, rng: () => number) {
   if (distribution.type === 'average') return distribution.points;
   if (distribution.type === 'uniform') {
     return Math.floor(distribution.low + rng() * (distribution.high - distribution.low + 1));
@@ -81,6 +105,11 @@ function samplePoints(distribution: Distribution, rng: () => number) {
     if (target <= cumulative) return component.points;
   }
   return distribution.components.at(-1)?.points ?? 0;
+}
+
+function samplePoints(course: CourseInput, rng: () => number) {
+  const points = sampleBasePoints(course.distribution, rng);
+  return course.primeOnly ? applyPrimePointRule(points, rng) : points;
 }
 
 function quickselect(values: number[], target: number) {
@@ -106,14 +135,14 @@ function quickselect(values: number[], target: number) {
   return values[left];
 }
 
-function analyticCurve(course: CourseInput, budget: number): ProbabilityCurve {
+function analyticCurve(course: CourseInput, budget: number, opponentPoints: number): ProbabilityCurve {
   if (course.capacity === 0) {
     return { probabilities: Array(budget + 1).fill(0), standardErrors: Array(budget + 1).fill(0), method: '确定结果' };
   }
   if (course.capacity > course.competitors) {
     return { probabilities: Array(budget + 1).fill(1), standardErrors: Array(budget + 1).fill(0), method: '确定结果' };
   }
-  const opponentTickets = (course.distribution as { points: number }).points + 1;
+  const opponentTickets = opponentPoints + 1;
   const probabilities = Array.from({ length: budget + 1 }, (_, points) => {
     const ownTickets = points + 1;
     let logMiss = 0;
@@ -136,10 +165,10 @@ function simulatedCurve(course: CourseInput, budget: number, samples: number, se
   const rng = mulberry32(seed);
   const totals = Array(budget + 1).fill(0);
   const squares = Array(budget + 1).fill(0);
-  const times = new Array<number>(course.competitors);
+  const times = Array.from({ length: course.competitors }, () => 0);
   for (let sample = 0; sample < samples; sample += 1) {
     for (let j = 0; j < course.competitors; j += 1) {
-      const tickets = samplePoints(course.distribution, rng) + 1;
+      const tickets = samplePoints(course, rng) + 1;
       times[j] = -Math.log1p(-rng()) / tickets;
     }
     const threshold = quickselect(times, course.capacity - 1);
@@ -156,6 +185,13 @@ function simulatedCurve(course: CourseInput, budget: number, samples: number, se
     return Math.sqrt(variance / samples);
   });
   return { probabilities, standardErrors, method: '指数竞赛模拟' };
+}
+
+function deterministicOpponentPoints(course: CourseInput): number | null {
+  if (course.distribution.type !== 'average') return null;
+  if (!course.primeOnly) return course.distribution.points;
+  const candidates = primePointCandidates(course.distribution.points);
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function reward(probability: number, value: number, objective: Objective) {
@@ -188,11 +224,12 @@ export function validateCourses(courses: CourseInput[]) {
 
 export function optimizeCourses(courses: CourseInput[], budget: number, objective: Objective, samples: number, seed: number): OptimizationResult {
   validateCourses(courses);
-  const curves = courses.map((course, index) =>
-    course.distribution.type === 'average'
-      ? analyticCurve(course, budget)
-      : simulatedCurve(course, budget, samples, seed + index * 1_000_003),
-  );
+  const curves = courses.map((course, index) => {
+    const opponentPoints = deterministicOpponentPoints(course);
+    return opponentPoints === null
+      ? simulatedCurve(course, budget, samples, seed + index * 1_000_003)
+      : analyticCurve(course, budget, opponentPoints);
+  });
   const count = courses.length;
   const dp = Array.from({ length: count + 1 }, () => Array(budget + 1).fill(Number.NEGATIVE_INFINITY));
   const choices = Array.from({ length: count + 1 }, () => Array(budget + 1).fill(0));
@@ -212,7 +249,7 @@ export function optimizeCourses(courses: CourseInput[], budget: number, objectiv
   }
   const best = Math.max(...dp[count]);
   if (!Number.isFinite(best)) throw new Error('当前设置下有课程中签率恒为 0，概率积目标无法计算。');
-  let usedPoints = dp[count].findIndex((score) => Math.abs(score - best) < 1e-12);
+  const usedPoints = dp[count].findIndex((score) => Math.abs(score - best) < 1e-12);
   const allocations = Array(count).fill(0);
   let remaining = usedPoints;
   for (let i = count; i > 0; i -= 1) {
@@ -244,10 +281,9 @@ export function optimizeCourses(courses: CourseInput[], budget: number, objectiv
         probabilityGain: curves[index].probabilities[points] - curves[index].probabilities[0],
         nextPointGain: points < budget ? curves[index].probabilities[points + 1] - curves[index].probabilities[points] : 0,
         standardError: curves[index].standardErrors[points],
-        method: curves[index].method,
+        method: `${curves[index].method}${course.primeOnly ? ' · 质数化' : ''}`,
         curve: curves[index].probabilities,
       };
     }),
   };
 }
-

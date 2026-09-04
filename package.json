@@ -14,6 +14,7 @@
     "local:preview": "vite preview --config vite.local.config.ts",
     "pages:build": "vite build --config vite.pages.config.ts",
     "pages:preview": "vite preview --config vite.pages.config.ts",
+    "test": "node --experimental-strip-types --test lib/lottery.test.ts",
     "lint": "oxlint",
     "format": "oxfmt"
   },

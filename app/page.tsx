@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Bird, BookOpen, ChevronDown, ChevronUp, Flame, Gauge, House, Mountain, Plus, ScrollText, Sparkles, Trash2, Zap } from 'lucide-react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { Switch } from '@/components/ui/switch';
 import { type CourseInput, type Distribution, type Objective, type OptimizationResult, optimizeCourses } from '@/lib/lottery';
 
 const initialCourses: CourseInput[] = [
@@ -519,6 +520,14 @@ export default function Home() {
                   <Field label="已选数 b" value={course.competitors} hint="不含本人" onChange={(competitors) => updateCourse(course.id, { competitors })} />
                   <DistributionFields distribution={course.distribution} onChange={(distribution) => updateCourse(course.id, { distribution })} />
                 </div>
+                <div className={course.primeOnly ? 'prime-option active' : 'prime-option'}>
+                  <div className="prime-mark" aria-hidden="true">质</div>
+                  <label htmlFor={`prime-${course.id}`}>
+                    <strong>质数化竞争者投点</strong>
+                    <small>保留 0 与 99；其余就近取质数，等距时各 50%</small>
+                  </label>
+                  <Switch id={`prime-${course.id}`} className="prime-switch" checked={Boolean(course.primeOnly)} onCheckedChange={(checked) => updateCourse(course.id, { primeOnly: checked })} aria-label={`${course.name}启用质数化竞争者投点`} />
+                </div>
                 {course.distribution.type === 'mixture' && (
                   <div className="course-dist">
                     <DistributionMixtureFields distribution={course.distribution} onChange={(distribution) => updateCourse(course.id, { distribution })} />
@@ -532,7 +541,7 @@ export default function Home() {
         <div className="calculate-zone">
           <button className="add-course" type="button" onClick={(event) => { spawnRipple(event); addCourse(); }}><Plus size={16} />再添一门课程</button>
           <button className={calculating ? 'compute-button charging' : 'compute-button'} type="button" onClick={(event) => { spawnRipple(event); calculate(); }} disabled={calculating}><span className="charge-line" /><Sparkles size={20} />{calculating ? '灵枢推演中…' : '开始推演最优投点'}</button>
-          <p>平均假设为解析解；其余假设进行指数竞赛模拟</p>
+          <p>确定的同质投点使用解析解；随机分布与质数化等距分流使用指数竞赛模拟</p>
         </div>
         {error && <div className="error-banner" role="alert">{error}</div>}
       </section>
@@ -687,6 +696,11 @@ export default function Home() {
                   <div className="sim-step-head"><span className="sim-step-tag">分群</span><h4>离散混合</h4><em>直接描述不同投点人群</em></div>
                   <p>离散混合模式把若干典型投点 <MathInline>{"c_{ih}"}</MathInline> 与其比例 <MathInline>{"p_{ih}"}</MathInline> 直接列出，可用来描述零点党、普通投点者和高点或满点投点者。</p>
                 </div>
+                <div className="sim-step sim-step-key">
+                  <div className="sim-step-head"><span className="sim-step-tag">修饰</span><h4>质数化投点</h4><em>叠加于任一基础分布</em></div>
+                  <p>若相信竞争者遵循“质数投点法”，先由上述基础分布生成潜在投点 <MathInline>{"X_{ij}"}</MathInline>，再映射到允许集合 <MathInline>{"\\mathcal A=\\{0,2,3,5,\\ldots,97,99\\}"}</MathInline> 中距离最近的点。零点与满点原样保留；若上下两个允许点距离相同，则各以一半概率选取。</p>
+                  <MathBlock note="质数化只修饰竞争者分布，不限制你自己的候选投点 q。">{"Q_{ij}=R_{\\mathcal A}(X_{ij}),\\qquad R_{\\mathcal A}(x)\\in\\operatorname*{arg\\,min}_{p\\in\\mathcal A}|p-x|."}</MathBlock>
+                </div>
                 <p className="model-conclusion">仅知道平均投点，通常不足以确定随机分布模式下的中签率。抽签包含排序、去重和门槛，概率会受到整个分布形状影响；因此最好把不确定性明确写进 <MathInline>{"D_i"}</MathInline>，并比较几种合理假设下的结果。</p>
               </div>
             </section>
@@ -696,11 +710,11 @@ export default function Home() {
               <div>
                 <p className="model-kicker">A faster probability engine</p>
                 <h3>对于概率求解的一种妙哉优化</h3>
-                <p>朴素票池似乎足矣，但我们希望更快，对吧？首先，对于平均假设的情况，我们显然有闭式解。其次，对于其他情况，经过一番与 GPT 的交流探索——妙哉，指数时间竞赛算法！</p>
+                <p>朴素票池似乎足矣，但我们希望更快，对吧？首先，当竞争者最终都固定投同一点数时，我们显然有闭式解；平均假设开启质数化后若唯一落到同一允许点，仍属于此类。其次，对于其他随机情况——包括恰在两个允许点中间而随机分流——经过一番与 GPT 的交流探索，妙哉，指数时间竞赛算法！</p>
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">（1）</span><h4>平均分布假设的闭式解</h4><em>无模拟误差</em></div>
                   <p>若所有竞争者都固定投 <MathInline>{"t_i"}</MathInline> 点，则每人有 <MathInline>{"t_i+1"}</MathInline> 张票。在你尚未中签且已有 <MathInline>{"j"}</MathInline> 名竞争者离场时，下一轮仍未抽中你的概率可以直接写出；连乘 <MathInline>{"a_i"}</MathInline> 轮，再取补集即可。</p>
-                  <MathBlock note="非平凡情形的每一轮分母都明确包含你的 q+1 张票。">{"P_i(q)=\\begin{cases}0,&a_i=0,\\\\1,&a_i>b_i,\\\\1-\\displaystyle\\prod_{j=0}^{a_i-1}\\frac{(b_i-j)(t_i+1)}{(b_i-j)(t_i+1)+(q+1)},&1\\le a_i\\le b_i.\\end{cases}"}</MathBlock>
+                  <MathBlock note="非平凡情形的每一轮分母都明确包含你的 q+1 张票；若启用质数化，tᵢ 指映射后的固定点数。">{"P_i(q)=\\begin{cases}0,&a_i=0,\\\\1,&a_i>b_i,\\\\1-\\displaystyle\\prod_{j=0}^{a_i-1}\\frac{(b_i-j)(t_i+1)}{(b_i-j)(t_i+1)+(q+1)},&1\\le a_i\\le b_i.\\end{cases}"}</MathBlock>
                 </div>
                 <div className="sim-step sim-step-key">
                   <div className="sim-step-head"><span className="sim-step-tag">（2）</span><h4>任意分布的求解优化：指数时间竞赛</h4><em>每个人只生成一个数</em></div>
@@ -730,7 +744,7 @@ export default function Home() {
                 </div>
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">概率</span><h4>逐课生成完整曲线</h4><em>解析或模拟</em></div>
-                  <p>若 <MathInline>{"D_i"}</MathInline> 为平均假设，使用闭式公式精确计算 <MathInline>{"P_i(0),\\ldots,P_i(B)"}</MathInline>；否则重复采样竞争者投点和指数时间，取得门槛 <MathInline>{"S_i^{(r)}"}</MathInline>，再用 <MathInline>{"1-e^{-(q+1)S_i^{(r)}}"}</MathInline> 同时累计所有候选点数。</p>
+                  <p>若竞争者最终固定投同一点数，使用闭式公式精确计算 <MathInline>{"P_i(0),\\ldots,P_i(B)"}</MathInline>；否则重复采样基础分布，按需完成质数化，再生成竞争者指数时间并取得门槛 <MathInline>{"S_i^{(r)}"}</MathInline>，最后用 <MathInline>{"1-e^{-(q+1)S_i^{(r)}}"}</MathInline> 同时累计所有候选点数。</p>
                 </div>
                 <div className="sim-step">
                   <div className="sim-step-head"><span className="sim-step-tag">分配</span><h4>动态规划并回溯</h4><em>全局整数最优</em></div>
@@ -740,10 +754,10 @@ export default function Home() {
                 <p>至此，理论的全流程如下：</p>
                 <div className="sim-step-head"><span className="sim-step-tag">理论综合</span><h4>把前文正着写一遍</h4><em>从假设到最优解</em></div>
                 <div className="sim-step sim-step-key">
-                  <p>第一步，实况与经验假设给出竞争者投点，投点加一成为票数：</p>
-                  <MathBlock>{"Q_{ij}^{(r)}\\sim D_i,\\qquad W_{ij}^{(r)}=Q_{ij}^{(r)}+1."}</MathBlock>
+                  <p>第一步，实况与经验假设生成竞争者的基础投点；若启用质数化，则先就近映射到允许集合，再将投点加一成为票数：</p>
+                  <MathBlock>{"X_{ij}^{(r)}\\sim D_i,\\qquad Q_{ij}^{(r)}=\\begin{cases}X_{ij}^{(r)},&\\text{普通模式},\\\\R_{\\mathcal A}(X_{ij}^{(r)}),&\\text{质数化模式},\\end{cases}\\qquad W_{ij}^{(r)}=Q_{ij}^{(r)}+1."}</MathBlock>
 
-                  <p>第二步，若采用平均分布假设，则直接得到无模拟误差的概率曲线：</p>
+                  <p>第二步，若竞争者的最终投点是确定同质的，则直接得到无模拟误差的概率曲线：</p>
                   <MathBlock note="aᵢ = 0 时概率为 0；aᵢ > bᵢ 时概率为 1。">{"P_i(q)=1-\\prod_{j=0}^{a_i-1}\\frac{(b_i-j)(t_i+1)}{(b_i-j)(t_i+1)+(q+1)}."}</MathBlock>
 
                   <p>若采用其他投点分布，则为每名竞争者生成指数时间：</p>
@@ -806,7 +820,7 @@ export default function Home() {
           <div className="rail-card rail-tips">
             <div className="rail-head"><Sparkles size={15} /><span>司规要义</span></div>
             <ul>
-              <li>平均假设即解析解；其余假设先以两万次粗算，定稿再提至十万次并查看标准误。</li>
+              <li>同质确定投点使用解析解；其余假设先以两万次粗算，定稿再提至十万次并查看标准误。</li>
             </ul>
           </div>
         </aside>
