@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Bird, BookOpen, ChevronDown, ChevronUp, Flame, Gauge, House, Mountain, Plus, ScrollText, Sparkles, Trash2, Zap } from 'lucide-react';
+import { Bird, BookOpen, ChevronDown, ChevronUp, Flame, Gauge, House, Mountain, Plus, ScrollText, Sparkles, Trash2, X, Zap } from 'lucide-react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -70,6 +70,20 @@ const navSections: { id: string; label: string; num: string; needsResult?: boole
 function numberValue(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+const COURSE_NUMERALS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+
+function parseCourseIndex(name: string) {
+  const body = name.replace(/^课程/, '');
+  const numeralIndex = COURSE_NUMERALS.indexOf(body);
+  if (numeralIndex >= 0) return numeralIndex + 1;
+  const parsed = Number(body);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function courseIndexLabel(index: number) {
+  return index <= 10 ? COURSE_NUMERALS[index - 1] : String(index);
 }
 
 function percent(value: number) {
@@ -387,9 +401,189 @@ function AdaptiveForecast({ course, distribution, family }: { course: CourseInpu
   );
 }
 
+function coarseAnchorFor(value: number) {
+  if (value <= 0) return 0;
+  if (value % 50 === 0) return Math.max(0, value - 50);
+  return Math.min(750, Math.floor(value / 50) * 50);
+}
+
+function QuickCalculator({ open, courses, onPatch, onAdd, onRemove, onClose, onGoFull }: {
+  open: boolean;
+  courses: CourseInput[];
+  onPatch: (id: string, patch: Partial<CourseInput>) => void;
+  onAdd: () => void;
+  onRemove: (id: string) => void;
+  onClose: () => void;
+  onGoFull: () => void;
+}) {
+  const [result, setResult] = useState<OptimizationResult | null>(null);
+  const [error, setError] = useState('');
+  const [calculating, setCalculating] = useState(false);
+  const [anchors, setAnchors] = useState<Record<string, { a: number; b: number }>>({});
+  useEffect(() => {
+    setAnchors((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const course of courses) {
+        if (!next[course.id]) {
+          next[course.id] = { a: coarseAnchorFor(course.capacity), b: coarseAnchorFor(course.competitors) };
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [courses]);
+  const anchorOf = (course: CourseInput, kind: 'a' | 'b') => {
+    const stored = anchors[course.id]?.[kind];
+    if (stored !== undefined) return stored;
+    return coarseAnchorFor(kind === 'a' ? course.capacity : course.competitors);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = previousOverflow; };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const run = () => {
+    setCalculating(true);
+    setError('');
+    window.setTimeout(() => {
+      try {
+        const adapted = courses.map((course) => ({
+          ...course,
+          distribution: adaptiveDistribution(course.capacity, course.competitors, 'cosine', 'average', DEFAULT_ADAPTIVE_PARAMETERS),
+          primeOnly: false,
+          primeShare: 1,
+        }));
+        setResult(optimizeCourses(adapted, 99, 'sum', 20_000, 20_260_903, { ownPointPolicy: 'all-integers' }));
+      } catch (caught) {
+        setResult(null);
+        setError(caught instanceof Error ? caught.message : '推演失败，请检查输入。');
+      } finally {
+        setCalculating(false);
+      }
+    }, 420);
+  };
+
+  return (
+    <div className="quick-veil" onClick={onClose}>
+      <div className="quick-modal" role="dialog" aria-modal="true" aria-label="极简投点器" onClick={(event) => event.stopPropagation()}>
+        <div className="quick-head">
+          <span className="quick-seal" aria-hidden="true">速</span>
+          <div>
+            <h2>极简投点</h2>
+            <p>只填限数与已选，余者交给默认策略</p>
+          </div>
+            <div className="quick-exit">
+              <span className="quick-exit-label" aria-hidden="true">进入细致筹算</span>
+              <button className="quick-close" type="button" aria-label="关闭极简投点器，进入完整版" onClick={onClose}><X size={15} /></button>
+            </div>
+        </div>
+        <div className="quick-rows">
+          {courses.map((course, index) => {
+            const aAnchor = anchorOf(course, 'a');
+            const bAnchor = anchorOf(course, 'b');
+            const aFineMax = Math.min(800, aAnchor + 50);
+            const bFineMax = Math.min(800, bAnchor + 50);
+            return (
+              <div className="quick-row" key={course.id} style={{ '--row-i': index } as React.CSSProperties}>
+                <span className="quick-index">{String(index + 1).padStart(2, '0')}</span>
+                <span className="quick-name">{course.name}</span>
+                <div className="q-field q-field-a">
+                  <span>限数 a</span>
+                  <input type="number" min={0} aria-label={`第${index + 1}门课限数 a`} value={course.capacity} onChange={(event) => {
+                    const next = numberValue(event.target.value);
+                    if (next < aAnchor || next > aFineMax) setAnchors((current) => ({ ...current, [course.id]: { a: coarseAnchorFor(next), b: current[course.id]?.b ?? bAnchor } }));
+                    onPatch(course.id, { capacity: next });
+                  }} />
+                  <div className="q-tune">
+                    <span className="q-tune-tag">细调</span>
+                    <i className="q-tune-end">{aAnchor}</i>
+                    <input type="range" className="q-slider" min={aAnchor} max={aFineMax} step={1} value={course.capacity} aria-label={`细调限数 a（${aAnchor}—${aFineMax}）`} onChange={(event) => onPatch(course.id, { capacity: Number(event.target.value) })} style={{ '--fill': `${((course.capacity - aAnchor) / Math.max(1, aFineMax - aAnchor)) * 100}%` } as React.CSSProperties} />
+                    <i className="q-tune-end">{aFineMax}</i>
+                  </div>
+                  <div className="q-tune">
+                    <span className="q-tune-tag">粗调</span>
+                    <i className="q-tune-end">0</i>
+                    <div className="q-coarse" style={{ '--fill': `${(aAnchor / 800) * 100}%` } as React.CSSProperties}>
+                      <div className="q-c-track" aria-hidden="true">{Array.from({ length: 17 }, (_, tick) => <i key={tick} />)}</div>
+                      <input type="range" className="q-slider q-slider-coarse" min={0} max={800} step={50} value={aAnchor} aria-label="粗调限数 a，步长 50" onChange={(event) => {
+                        const next = Number(event.target.value);
+                        setAnchors((current) => ({ ...current, [course.id]: { a: next, b: current[course.id]?.b ?? bAnchor } }));
+                        onPatch(course.id, { capacity: next });
+                      }} />
+                    </div>
+                    <i className="q-tune-end">800</i>
+                  </div>
+                </div>
+                <div className="q-field q-field-b">
+                  <span>已选 b（不包含自己）</span>
+                  <input type="number" min={0} aria-label={`第${index + 1}门课已选 b`} value={course.competitors} onChange={(event) => {
+                    const next = numberValue(event.target.value);
+                    if (next < bAnchor || next > bFineMax) setAnchors((current) => ({ ...current, [course.id]: { a: current[course.id]?.a ?? aAnchor, b: coarseAnchorFor(next) } }));
+                    onPatch(course.id, { competitors: next });
+                  }} />
+                  <div className="q-tune">
+                    <span className="q-tune-tag">细调</span>
+                    <i className="q-tune-end">{bAnchor}</i>
+                    <input type="range" className="q-slider" min={bAnchor} max={bFineMax} step={1} value={course.competitors} aria-label={`细调已选 b（${bAnchor}—${bFineMax}）`} onChange={(event) => onPatch(course.id, { competitors: Number(event.target.value) })} style={{ '--fill': `${((course.competitors - bAnchor) / Math.max(1, bFineMax - bAnchor)) * 100}%` } as React.CSSProperties} />
+                    <i className="q-tune-end">{bFineMax}</i>
+                  </div>
+                  <div className="q-tune">
+                    <span className="q-tune-tag">粗调</span>
+                    <i className="q-tune-end">0</i>
+                    <div className="q-coarse" style={{ '--fill': `${(bAnchor / 800) * 100}%` } as React.CSSProperties}>
+                      <div className="q-c-track" aria-hidden="true">{Array.from({ length: 17 }, (_, tick) => <i key={tick} />)}</div>
+                      <input type="range" className="q-slider q-slider-coarse" min={0} max={800} step={50} value={bAnchor} aria-label="粗调已选 b，步长 50" onChange={(event) => {
+                        const next = Number(event.target.value);
+                        setAnchors((current) => ({ ...current, [course.id]: { a: current[course.id]?.a ?? aAnchor, b: next } }));
+                        onPatch(course.id, { competitors: next });
+                      }} />
+                    </div>
+                    <i className="q-tune-end">800</i>
+                  </div>
+                </div>
+                <button className="quick-remove" type="button" aria-label={`删除${course.name}`} disabled={courses.length <= 1} onClick={() => onRemove(course.id)}><Trash2 size={14} /></button>
+              </div>
+            );
+          })}
+          <button className="add-course quick-add" type="button" onClick={(event) => { spawnRipple(event); onAdd(); }}><Plus size={15} />再添一门</button>
+        </div>
+        {error && <div className="quick-error" role="alert">{error}</div>}
+        <button className={calculating ? 'quick-run charging' : 'quick-run'} type="button" onClick={(event) => { spawnRipple(event); run(); }} disabled={calculating}>
+          <Sparkles size={17} />{calculating ? '推演中…' : result ? '重新推演' : '一键知晓结果'}
+        </button>
+        {result && (
+          <div className="quick-result">
+            <div className="result-stamp quick-stamp">最优策</div>
+            <ul>
+              {result.courses.map((item) => (
+                <li key={item.course.id}>
+                  <span className="qr-name">{item.course.name}</span>
+                  <strong className="qr-points"><AnimatedNumber value={item.points} format={(value) => String(Math.round(value))} /><small>点</small></strong>
+                  <span className="qr-bar" aria-hidden="true"><i style={{ '--qr-w': percent(item.probabilityAfter) } as React.CSSProperties} /></span>
+                  <span className="qr-prob">{percent(item.probabilityAfter)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="quick-meta">用点 {result.usedPoints} / 99 · 默认策略：自适应预测 A · 概率和</p>
+            <button className="quick-full" type="button" onClick={onGoFull}><Zap size={13} />去精细版细调</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [courses, setCourses] = useState(initialCourses);
-  const [objectiveKind, setObjectiveKind] = useState<ObjectiveKind>('product');
+  const [objectiveKind, setObjectiveKind] = useState<ObjectiveKind>('mean');
   const [weighted, setWeighted] = useState(false);
   const [predictionMode, setPredictionMode] = useState<PredictionMode>('adaptive');
   const [priorFamily, setPriorFamily] = useState<PriorFamily>('cosine');
@@ -407,6 +601,7 @@ export default function Home() {
   const [scrolled, setScrolled] = useState(false);
   const [progress, setProgress] = useState(0);
   const [activeSection, setActiveSection] = useState('top');
+  const [quickOpen, setQuickOpen] = useState(true);
   const resultsRef = useRef<HTMLElement>(null);
   const usesCourseWeights = weighted;
   const objective: Objective = objectiveKind === 'mean'
@@ -463,7 +658,10 @@ export default function Home() {
     };
     updateCourse(id, { distribution: defaults[type] });
   };
-  const addCourse = () => setCourses((current) => [...current, { id: `course-${Date.now()}`, name: `课程${current.length + 1}`, capacity: 30, competitors: 50, value: 1, distribution: { type: 'average', points: 20 } }]);
+  const addCourse = () => setCourses((current) => {
+    const nextIndex = current.reduce((maxIndex, course) => Math.max(maxIndex, parseCourseIndex(course.name)), 0) + 1;
+    return [...current, { id: `course-${Date.now()}`, name: `课程${courseIndexLabel(nextIndex)}`, capacity: 30, competitors: 50, value: 1, distribution: { type: 'average', points: 20 } }];
+  });
   const calculate = () => {
     setCalculating(true);
     setError('');
@@ -512,7 +710,10 @@ export default function Home() {
         <div className="hero-copy">
           <p className="eyebrow"><Mountain size={15} /> 九十九点 · 一局定策</p>
           <h1 className="hero-brand">点筹司</h1>
-          <a className="hero-cta" href="#calculator" onClick={spawnRipple}><Zap size={17} />开启筹算</a>
+          <div className="hero-actions">
+            <a className="hero-cta" href="#calculator" onClick={spawnRipple}><Zap size={17} />开启筹算</a>
+            <button className="hero-quick" type="button" onClick={(event) => { spawnRipple(event); setQuickOpen(true); }}><Zap size={17} />极简投点</button>
+          </div>
         </div>
         <div className="hero-badges"><span><Flame size={15} />0 点亦有一票</span><span><Bird size={15} />全局整数最优</span><span><Gauge size={15} />可复现模拟</span></div>
       </section>
@@ -1219,6 +1420,21 @@ export default function Home() {
           </div>
         </aside>
       </div>
+
+      <QuickCalculator
+        open={quickOpen}
+        courses={courses}
+        onPatch={updateCourse}
+        onAdd={addCourse}
+        onRemove={(id) => setCourses((current) => current.filter((course) => course.id !== id))}
+        onClose={() => setQuickOpen(false)}
+        onGoFull={() => { setQuickOpen(false); window.setTimeout(() => jumpTo('calculator'), 80); }}
+      />
+      {!quickOpen && (
+        <button className="quick-relaunch" type="button" onClick={(event) => { spawnRipple(event); setQuickOpen(true); }} aria-label="打开极简投点器">
+          <Zap size={15} /><span>极简投点</span>
+        </button>
+      )}
 
       <footer>
         <div className="footer-inner">
